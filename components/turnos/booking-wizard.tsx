@@ -139,7 +139,7 @@ export function BookingWizard({
     let sessionsCount = 1
 
     if (bookingType === "pack" && selectedPack) {
-      basePrice = selectedPack.price
+      basePrice = selectedPack.totalPrice
       sessionsCount = selectedPack.sessionsCount
     } else {
       basePrice = service.basePrice
@@ -150,8 +150,9 @@ export function BookingWizard({
     const finalPrice = basePrice - discountAmount
 
     let depositSuggested = 0
-    if (bookingType === "pack" && selectedPack?.requiresDeposit) {
-      depositSuggested = selectedPack.depositAmount
+    if (bookingType === "pack" && selectedPack) {
+      // Packs suggest 50% deposit by default
+      depositSuggested = selectedPack.totalPrice * 0.5
     } else if (service.requiresDeposit) {
       depositSuggested = finalPrice * (service.recommendedDepositPercentage / 100)
     }
@@ -790,12 +791,7 @@ ${paidAmount > 0 ? `✅ *Abonado:* ${formatCurrency(paidAmount)}\n` : ""}${pendi
                                     <div className="text-sm text-muted-foreground">{pack.sessionsCount} sesiones</div>
                                   </div>
                                   <div className="text-right">
-                                    <div className="font-bold text-lg text-primary">{formatCurrency(pack.price)}</div>
-                                    {pack.discountPercentage > 0 && (
-                                      <Badge variant="secondary" className="bg-green-100 text-green-700">
-                                        -{pack.discountPercentage}%
-                                      </Badge>
-                                    )}
+                                    <div className="font-bold text-lg text-primary">{formatCurrency(pack.totalPrice)}</div>
                                   </div>
                                 </CardContent>
                               </Card>

@@ -341,22 +341,17 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     return result
   }
 
-  // Load from Supabase first, fallback to localStorage
-  const loadFromSupabaseOrStorage = async <T,>(
+  // Load from Supabase ONLY (no localStorage fallback)
+  const loadFromSupabase = async <T,>(
     tableName: string,
-    localStorageKey: string,
     defaultValue: T[]
   ): Promise<T[]> => {
-    if (!isSupabaseConfigured()) {
-      return loadFromStorage(localStorageKey, defaultValue)
-    }
-
     try {
       const { data, error } = await supabase.from(tableName).select('*')
 
       if (error) {
         console.error(`[Supabase Load] Error fetching ${tableName}:`, error.message)
-        return loadFromStorage(localStorageKey, defaultValue)
+        return defaultValue
       }
 
       if (data && data.length > 0) {
@@ -364,11 +359,11 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         return data.map(row => toCamelCase(row) as T)
       }
 
-      // No data in Supabase, fallback to localStorage
-      return loadFromStorage(localStorageKey, defaultValue)
+      // No data in Supabase, return defaults
+      return defaultValue
     } catch (err) {
       console.error(`[Supabase Load] Failed to load ${tableName}:`, err)
-      return loadFromStorage(localStorageKey, defaultValue)
+      return defaultValue
     }
   }
 
@@ -390,26 +385,22 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     const loadData = async () => {
       if (typeof window === "undefined") return
 
-      // Load from Supabase first for main entities, fallback to localStorage
+      // Load from Supabase ONLY for main entities
       const [supabaseAppts, supabaseClients, supabaseProfs, supabaseUsers] = await Promise.all([
-        loadFromSupabaseOrStorage<Appointment>(
+        loadFromSupabase<Appointment>(
           SYNC_CONFIG.appointments.tableName,
-          SYNC_CONFIG.appointments.localStorageKey,
           mockAppointments
         ),
-        loadFromSupabaseOrStorage<Client>(
+        loadFromSupabase<Client>(
           SYNC_CONFIG.clients.tableName,
-          SYNC_CONFIG.clients.localStorageKey,
           mockClients
         ),
-        loadFromSupabaseOrStorage<Professional>(
+        loadFromSupabase<Professional>(
           SYNC_CONFIG.professionals.tableName,
-          SYNC_CONFIG.professionals.localStorageKey,
           mockProfessionals
         ),
-        loadFromSupabaseOrStorage<User>(
+        loadFromSupabase<User>(
           SYNC_CONFIG.users.tableName,
-          SYNC_CONFIG.users.localStorageKey,
           mockUsers
         ),
       ])
@@ -649,32 +640,28 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (isInitialized) {
-      saveToStorage("tense_erp_appointments", appointments)
-      // Sync to Supabase
+      // Sync to Supabase ONLY (no localStorage)
       syncToSupabase(SYNC_CONFIG.appointments.tableName, appointments)
     }
   }, [appointments, isInitialized])
 
   useEffect(() => {
     if (isInitialized) {
-      saveToStorage("tense_erp_clients", clients)
-      // Sync to Supabase
+      // Sync to Supabase ONLY (no localStorage)
       syncToSupabase(SYNC_CONFIG.clients.tableName, clients)
     }
   }, [clients, isInitialized])
 
   useEffect(() => {
     if (isInitialized) {
-      saveToStorage("tense_erp_professionals", professionals)
-      // Sync to Supabase
+      // Sync to Supabase ONLY (no localStorage)
       syncToSupabase(SYNC_CONFIG.professionals.tableName, professionals)
     }
   }, [professionals, isInitialized])
 
   useEffect(() => {
     if (isInitialized) {
-      saveToStorage("tense_erp_users", users)
-      // Sync to Supabase
+      // Sync to Supabase ONLY (no localStorage)
       syncToSupabase(SYNC_CONFIG.users.tableName, users)
     }
   }, [users, isInitialized])
