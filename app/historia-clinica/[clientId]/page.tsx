@@ -280,13 +280,13 @@ export default function PatientHistoryPage() {
         if (!open) setSelectedFormType(null)
       }}>
         <DialogContent className="max-w-7xl max-h-[95vh] flex flex-col p-0 gap-0">
-          <DialogHeader className="px-4 py-3 border-b shrink-0">
-            <DialogTitle>
+          <DialogHeader className="px-4 py-2 border-b shrink-0">
+            <DialogTitle className="text-base">
               {selectedFormType
                 ? FORM_TYPES_INFO.find(t => t.value === selectedFormType)?.label
                 : `Nueva Ficha - ${activeCategory}`}
             </DialogTitle>
-            <DialogDescription>
+            <DialogDescription className="text-xs">
               {selectedFormType ? "Complete los datos de la ficha." : "Seleccione el tipo de ficha a crear."}
             </DialogDescription>
           </DialogHeader>
@@ -373,10 +373,11 @@ export default function PatientHistoryPage() {
                 setIsNewEntryOpen(false)
               }}
             />
-          )}
-        </DialogContent>
-      </Dialog>
-    </div>
+          )
+          }
+        </DialogContent >
+      </Dialog >
+    </div >
   )
 }
 
@@ -428,54 +429,54 @@ function DynamicEntryForm({
 
   return (
     <div className="flex flex-col flex-1 min-h-0 bg-slate-50/50">
-      <div className="flex-1 overflow-y-auto overflow-x-hidden p-6">
+      <div className="flex-1 overflow-y-auto overflow-x-hidden p-4">
         <div className="max-w-full mx-auto">
 
-          {/* METADATA HEADER (Automated Session & Professional) */}
-          <div className="mb-6 flex flex-wrap items-center gap-4 px-1">
-            <div className="flex items-center gap-2 bg-white px-4 py-2.5 rounded-xl shadow-sm ring-1 ring-slate-200 border-l-4 border-l-primary">
-              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest leading-none">Sesión Nº</span>
+          {/* METADATA HEADER - Compact */}
+          <div className="mb-4 flex flex-wrap items-center gap-3 px-1">
+            <div className="flex items-center gap-2 bg-white px-3 py-2 rounded-lg shadow-sm ring-1 ring-slate-200 border-l-3 border-l-primary">
+              <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider leading-none">Sesión Nº</span>
               <span className="text-sm font-black text-slate-900">#{initialSessionNumber}</span>
             </div>
-            <div className="flex items-center gap-2 bg-white px-4 py-2.5 rounded-xl shadow-sm ring-1 ring-slate-200">
-              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest leading-none">Profesional</span>
-              <span className="text-sm font-bold text-slate-700 flex items-center gap-2">
-                <div className="h-5 w-5 rounded-full bg-primary/10 flex items-center justify-center">
-                  <User className="h-3 w-3 text-primary" />
+            <div className="flex items-center gap-2 bg-white px-3 py-2 rounded-lg shadow-sm ring-1 ring-slate-200">
+              <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider leading-none">Prof.</span>
+              <span className="text-sm font-bold text-slate-700 flex items-center gap-1.5">
+                <div className="h-4 w-4 rounded-full bg-primary/10 flex items-center justify-center">
+                  <User className="h-2.5 w-2.5 text-primary" />
                 </div>
                 {initialProfessionalName}
               </span>
             </div>
-            <div className="flex items-center gap-2 bg-white px-4 py-2.5 rounded-xl shadow-sm ring-1 ring-slate-200 ml-auto hidden sm:flex">
-              <Calendar className="h-3.5 w-3.5 text-slate-400" />
-              <span className="text-sm font-semibold text-slate-600">{format(new Date(), "dd 'de' MMMM, yyyy", { locale: es })}</span>
+            <div className="flex items-center gap-1.5 bg-white px-3 py-2 rounded-lg shadow-sm ring-1 ring-slate-200 ml-auto hidden sm:flex">
+              <Calendar className="h-3 w-3 text-slate-400" />
+              <span className="text-sm font-semibold text-slate-600">{format(new Date(), "dd/MM/yy", { locale: es })}</span>
             </div>
           </div>
           {hasSidebar ? (
-            /* CASE A: WITH SIDEBAR (Treatment / Routine) - Professional 2-Column Dashboard */
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 w-full">
-              {/* LEFT COLUMN: Medical Data */}
-              <div className="lg:col-span-12 xl:col-span-7 space-y-4">
+            /* CASE A: WITH SIDEBAR (Treatment / Routine) - Compact Professional Layout */
+            <div className="grid grid-cols-1 xl:grid-cols-12 gap-3 w-full">
+              {/* LEFT COLUMN: Medical Data - Takes 8 columns for more space */}
+              <div className="xl:col-span-8 space-y-3">
                 {/* Session Data Sections */}
                 {sections.map(section => {
                   const fields = rawFields.filter(f => f.section === section.id && f.isActive !== false).sort((a, b) => a.order - b.order)
                   if (fields.length === 0) return null
                   return (
                     <Card key={section.id} className="border-none shadow-sm ring-1 ring-slate-200 bg-white h-fit">
-                      <CardHeader className="py-2.5 px-4 border-b bg-slate-50/50">
+                      <CardHeader className="py-2 px-3 border-b bg-slate-50/50">
                         <div className="flex items-center gap-2">
-                          <div className="p-1.5 bg-blue-500/10 rounded-md">
-                            <FileText className="h-3.5 w-3.5 text-blue-600" />
+                          <div className="p-1 bg-blue-500/10 rounded">
+                            <FileText className="h-3 w-3 text-blue-600" />
                           </div>
                           <CardTitle className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">{section.title}</CardTitle>
                         </div>
                       </CardHeader>
-                      <CardContent className="p-4 space-y-4">
-                        {/* Group fields for better flow: Inputs first, then Textareas */}
-                        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-x-4 gap-y-3">
+                      <CardContent className="p-3">
+                        {/* Denser grid for more compact view */}
+                        <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-x-3 gap-y-2">
                           {fields.map(field => (
-                            <div key={field.id} className={cn("space-y-1", field.type === "textarea" ? "md:col-span-2 xl:col-span-3" : "xl:col-span-1")}>
-                              <Label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+                            <div key={field.id} className={cn("space-y-0.5", field.type === "textarea" ? "col-span-2 lg:col-span-3 xl:col-span-4" : "col-span-1")}>
+                              <Label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1">
                                 {field.label} {field.required && <span className="text-red-500 font-bold">*</span>}
                               </Label>
                               <RenderFieldInput field={field} value={values[field.key]} onChange={(val: any) => setValues(p => ({ ...p, [field.key]: val }))} />
@@ -488,42 +489,41 @@ function DynamicEntryForm({
                 })}
               </div>
 
-              {/* RIGHT COLUMN: Interactive Widgets (Body Map & Adherence) */}
-              <div className="lg:col-span-12 xl:col-span-5 space-y-4">
-                {/* BODY MAP */}
-                {showBodyMap && (
-                  <Card className="border-none shadow-sm ring-1 ring-slate-200 bg-white overflow-hidden">
-                    <CardHeader className="py-2.5 px-4 border-b bg-primary/[0.03]">
-                      <div className="flex items-center gap-2">
-                        <Activity className="h-3.5 w-3.5 text-primary" />
-                        <CardTitle className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Mapa Corporal</CardTitle>
+              {/* RIGHT COLUMN: Interactive Widgets - Horizontal Layout */}
+              <div className="xl:col-span-4">
+                <div className="flex gap-2 h-full">
+                  {/* LEFT: BODY MAP */}
+                  {showBodyMap && (
+                    <Card className="border-none shadow-sm ring-1 ring-slate-200 bg-white overflow-hidden flex-[1.2] min-w-0">
+                      <CardHeader className="py-1 px-2 border-b bg-primary/[0.03]">
+                        <div className="flex items-center gap-1">
+                          <Activity className="h-2.5 w-2.5 text-primary" />
+                          <CardTitle className="text-[8px] font-bold text-slate-500 uppercase tracking-widest">Mapa Corporal</CardTitle>
+                        </div>
+                      </CardHeader>
+                      <div className="p-1 flex justify-center bg-white">
+                        <div className="w-full">
+                          <BodyMap zones={values.bodyZones || []} onZonesChange={handleBodyMapChange} readOnly={false} />
+                        </div>
                       </div>
-                    </CardHeader>
-                    <div className="p-4 flex justify-center bg-white border-b border-slate-50">
-                      <div className="w-full max-w-[420px]">
-                        <BodyMap zones={values.bodyZones || []} onZonesChange={handleBodyMapChange} readOnly={false} />
-                      </div>
-                    </div>
-                    <div className="px-4 py-2 bg-slate-50/50 flex items-center gap-2 text-[9px] text-slate-400 font-medium uppercase tracking-wider">
-                      <Info className="h-2.5 w-2.5" />
-                      Marque las zonas de dolor directamente sobre el modelo.
-                    </div>
-                  </Card>
-                )}
+                    </Card>
+                  )}
 
-                {showAdherence && (
-                  <Card className="border-none shadow-sm ring-1 ring-slate-200 bg-white overflow-hidden h-fit">
-                    <CardHeader className="py-2.5 px-4 border-b bg-pink-50/30">
-                      <div className="flex items-center gap-2">
-                        <Sparkles className="h-3.5 w-3.5 text-pink-500" />
-                        <CardTitle className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Adherencia y Puntos</CardTitle>
-                      </div>
-                    </CardHeader>
-                    <CardContent className="p-4 bg-white">
-                      <AdherenceInput value={values.adherence} onChange={val => setValues(p => ({ ...p, adherence: val }))} />
-                    </CardContent>
-                  </Card>
-                )}
+                  {/* RIGHT: ADHERENCIA */}
+                  {showAdherence && (
+                    <Card className="border-none shadow-sm ring-1 ring-slate-200 bg-white overflow-hidden flex-1 min-w-0 h-fit">
+                      <CardHeader className="py-1 px-2 border-b bg-pink-50/30">
+                        <div className="flex items-center gap-1">
+                          <Sparkles className="h-2.5 w-2.5 text-pink-500" />
+                          <CardTitle className="text-[8px] font-bold text-slate-500 uppercase tracking-widest">Adherencia</CardTitle>
+                        </div>
+                      </CardHeader>
+                      <CardContent className="p-1.5 bg-white">
+                        <AdherenceInput value={values.adherence} onChange={val => setValues(p => ({ ...p, adherence: val }))} />
+                      </CardContent>
+                    </Card>
+                  )}
+                </div>
               </div>
             </div>
           ) : (

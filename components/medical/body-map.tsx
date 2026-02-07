@@ -378,60 +378,34 @@ export function BodyMap({ zones = [], onZonesChange, readOnly = false, isPatient
   )
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-1">
+      {/* Ultra Compact Controls */}
       {!readOnly && !isPatient && (
-        <Card className="p-4 bg-slate-50/50 border-slate-200 shadow-sm rounded-2xl">
-          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-            <div className="flex flex-wrap items-center gap-3">
-              <TooltipProvider>
-                <div className="flex items-center gap-2 px-3 py-1.5 bg-white rounded-lg border border-slate-200">
-                  <Zap className="h-4 w-4 text-amber-500" />
-                  <Label htmlFor="quick-mode" className="text-xs font-semibold">Modo Rápido</Label>
-                  <Switch id="quick-mode" checked={quickSelectMode} onCheckedChange={setQuickSelectMode} />
-                </div>
-                <div className="flex items-center gap-2 px-3 py-1.5 bg-white rounded-lg border border-slate-200">
-                  <Copy className="h-4 w-4 text-sky-500" />
-                  <Label htmlFor="mirror-mode" className="text-xs font-semibold">Modo Espejo</Label>
-                  <Switch id="mirror-mode" checked={mirrorMode} onCheckedChange={setMirrorMode} />
-                </div>
-              </TooltipProvider>
-
-              <Button variant="outline" size="sm" onClick={handleClearAll} className="text-xs font-semibold h-9 rounded-lg border-slate-200">
-                <RotateCcw className="h-3.5 w-3.5 mr-2" />
-                Limpiar Todo
-              </Button>
-            </div>
-
-            <div className="relative w-full lg:w-96">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-              <Input
-                placeholder="Buscar región (ej: dorsal, rodilla...)"
-                className="pl-10 h-10 text-sm bg-white border-slate-200 rounded-lg shadow-none"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-              />
-            </div>
+        <div className="flex items-center gap-1 px-1 py-0.5 bg-slate-50/50 rounded border border-slate-100/50">
+          <div className="flex items-center gap-1 px-1.5 py-0.5 bg-white rounded border border-slate-200/50">
+            <Zap className="h-2.5 w-2.5 text-amber-500" />
+            <Label htmlFor="quick-mode" className="text-[8px] font-semibold cursor-pointer">Rápido</Label>
+            <Switch id="quick-mode" checked={quickSelectMode} onCheckedChange={setQuickSelectMode} className="scale-[0.6]" />
           </div>
-          <div className="mt-3 flex items-center gap-2 text-[11px] text-slate-500 bg-blue-50/50 p-2 rounded-lg border border-blue-100">
-            <Info className="h-3.5 w-3.5 text-blue-500" />
-            <span>Haz clic en las zonas del mapa para marcar dolor o tratamiento. El modo rápido permite marcar/quitar con un solo clic.</span>
+          <div className="flex items-center gap-1 px-1.5 py-0.5 bg-white rounded border border-slate-200/50">
+            <Copy className="h-2.5 w-2.5 text-sky-500" />
+            <Label htmlFor="mirror-mode" className="text-[8px] font-semibold cursor-pointer">Espejo</Label>
+            <Switch id="mirror-mode" checked={mirrorMode} onCheckedChange={setMirrorMode} className="scale-[0.6]" />
           </div>
-        </Card>
+          <Button variant="ghost" size="sm" onClick={handleClearAll} className="text-[8px] font-semibold h-5 px-1.5 rounded text-slate-400 hover:text-slate-600 ml-auto">
+            <RotateCcw className="h-2.5 w-2.5" />
+          </Button>
+        </div>
       )}
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 lg:gap-6 w-full max-w-5xl mx-auto">
-        <div className="space-y-4">
-          <div className="flex items-center justify-center gap-2 mb-2">
-            <div className="h-px w-8 bg-slate-200"></div>
-            <span className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Vista Frontal</span>
-            <div className="h-px w-8 bg-slate-200"></div>
-          </div>
-
-          <div className="relative aspect-[200/600] rounded-[2rem] bg-white border border-slate-100 shadow-xl overflow-hidden group h-[720px] mx-auto">
-            <img src="/images/body-front.png" alt="Anatomía Frontal" className="absolute inset-0 w-full h-full object-fill opacity-100 transition-opacity duration-500" />
+      {/* Body Maps - Ultra Compact Side by Side */}
+      <div className="flex gap-0.5 justify-center items-stretch w-full bg-amber-50/30 rounded-lg p-1 border border-amber-100/30">
+        {/* FRONT VIEW */}
+        <div className="flex-1 flex flex-col items-center">
+          <span className="text-[7px] font-bold uppercase tracking-wider text-slate-400 mb-0.5">Frontal</span>
+          <div className="relative w-full h-[360px] rounded-lg bg-white/80 overflow-hidden">
+            <img src="/images/body-front.png" alt="Frontal" className="absolute inset-0 w-full h-full object-contain" />
             <PointOverlay zonesMap={FRONT_ZONES} side="front" />
-            <div className="absolute inset-0 bg-gradient-to-t from-white/10 to-transparent pointer-events-none"></div>
-
             <Popover open={showDialog && !!selectedZone && Object.keys(FRONT_ZONES).includes(selectedZone)} onOpenChange={(open) => {
               if (!open) {
                 setShowDialog(false)
@@ -447,25 +421,19 @@ export function BodyMap({ zones = [], onZonesChange, readOnly = false, isPatient
                   height: 1
                 }} />
               </PopoverTrigger>
-              <PopoverContent className="w-80 p-0 rounded-2xl shadow-2xl border-slate-200 overflow-hidden z-[100]" side="right" align="start" sideOffset={20}>
+              <PopoverContent className="w-64 p-0 rounded-lg shadow-2xl border-slate-200 overflow-hidden z-[100]" side="right" align="start" sideOffset={5}>
                 {renderForm()}
               </PopoverContent>
             </Popover>
           </div>
         </div>
 
-        <div className="space-y-4">
-          <div className="flex items-center justify-center gap-2 mb-2">
-            <div className="h-px w-8 bg-slate-200"></div>
-            <span className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Vista Posterior</span>
-            <div className="h-px w-8 bg-slate-200"></div>
-          </div>
-
-          <div className="relative aspect-[200/600] rounded-[2rem] bg-white border border-slate-100 shadow-xl overflow-hidden group h-[600px] mx-auto">
-            <img src="/images/body-back.png" alt="Anatomía Posterior" className="absolute inset-0 w-full h-full object-fill opacity-100 transition-opacity duration-500" />
+        {/* BACK VIEW */}
+        <div className="flex-1 flex flex-col items-center">
+          <span className="text-[7px] font-bold uppercase tracking-wider text-slate-400 mb-0.5">Posterior</span>
+          <div className="relative w-full h-[360px] rounded-lg bg-white/80 overflow-hidden">
+            <img src="/images/body-back.png" alt="Posterior" className="absolute inset-0 w-full h-full object-contain" />
             <PointOverlay zonesMap={BACK_ZONES} side="back" />
-            <div className="absolute inset-0 bg-gradient-to-t from-white/10 to-transparent pointer-events-none"></div>
-
             <Popover open={showDialog && !!selectedZone && Object.keys(BACK_ZONES).includes(selectedZone)} onOpenChange={(open) => {
               if (!open) {
                 setShowDialog(false)
@@ -481,7 +449,7 @@ export function BodyMap({ zones = [], onZonesChange, readOnly = false, isPatient
                   height: 1
                 }} />
               </PopoverTrigger>
-              <PopoverContent className="w-80 p-0 rounded-2xl shadow-2xl border-slate-200 overflow-hidden z-[100]" side="left" align="start" sideOffset={20}>
+              <PopoverContent className="w-64 p-0 rounded-lg shadow-2xl border-slate-200 overflow-hidden z-[100]" side="left" align="start" sideOffset={5}>
                 {renderForm()}
               </PopoverContent>
             </Popover>
@@ -489,20 +457,20 @@ export function BodyMap({ zones = [], onZonesChange, readOnly = false, isPatient
         </div>
       </div>
 
-      {/* Registro de la Sesión (Grouped Notes) */}
+      {/* Registro de la Sesión - Compact */}
       {visibleZones.length > 0 && (
-        <div className="pt-6 border-t border-slate-100 animate-in fade-in slide-in-from-bottom-2">
-          <div className="flex items-center justify-between mb-4">
-            <h4 className="text-sm font-bold text-slate-800 flex items-center gap-2">
-              <div className="w-1.5 h-1.5 rounded-full bg-blue-500"></div>
-              Registro de la Sesión
+        <div className="pt-2 border-t border-slate-100">
+          <div className="flex items-center justify-between mb-2">
+            <h4 className="text-[10px] font-bold text-slate-600 flex items-center gap-1.5 uppercase tracking-wide">
+              <div className="w-1 h-1 rounded-full bg-blue-500"></div>
+              Zonas Marcadas
             </h4>
-            <Badge variant="secondary" className="bg-slate-100 text-slate-600 border-none font-bold text-[10px]">
-              {visibleZones.length} {visibleZones.length === 1 ? 'PUNTO MARCADO' : 'PUNTOS MARCADOS'}
+            <Badge variant="secondary" className="bg-slate-100 text-slate-500 border-none font-bold text-[9px] h-5">
+              {visibleZones.length} {visibleZones.length === 1 ? 'zona' : 'zonas'}
             </Badge>
           </div>
 
-          <div className="grid grid-cols-1 gap-3">
+          <div className="space-y-1.5">
             {(() => {
               // Group zones by their content to show them as a single "note"
               const groups: Record<string, { zones: BodyZone[], treatment: string, intensity: string, notes: string, visibleToPatient: boolean }> = {}
@@ -521,60 +489,56 @@ export function BodyMap({ zones = [], onZonesChange, readOnly = false, isPatient
               })
 
               return Object.entries(groups).map(([key, group], idx) => (
-                <div key={idx} className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm hover:border-blue-200 transition-all group/note relative">
-                  <div className="flex items-start justify-between gap-4">
-                    <div className="flex-1 space-y-2">
-                      <div className="flex flex-wrap gap-1.5">
+                <div key={idx} className="bg-white border border-slate-200 rounded-lg p-2 hover:border-blue-200 transition-all group/note relative">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex flex-wrap gap-1 mb-1">
                         {group.zones.map(z => (
                           <Badge
                             key={z.id}
                             variant="outline"
                             className={cn(
-                              "text-[10px] font-bold py-0.5 px-2 rounded-lg border-slate-200 bg-slate-50/50 text-slate-600",
+                              "text-[9px] font-bold py-0 px-1.5 rounded border-slate-200 bg-slate-50/50 text-slate-600",
                               !z.visibleToPatient && "border-amber-200 bg-amber-50 text-amber-700"
                             )}
                           >
-                            {!z.visibleToPatient && <EyeOff className="h-2.5 w-2.5 mr-1" />}
+                            {!z.visibleToPatient && <EyeOff className="h-2 w-2 mr-0.5" />}
                             {z.label}
                           </Badge>
                         ))}
                       </div>
-
-                      <div className="space-y-1">
-                        <div className="flex items-center gap-2">
-                          <p className="text-sm font-black text-slate-900 uppercase tracking-tight">{group.treatment}</p>
-                          {group.intensity && (
-                            <Badge variant="secondary" className="h-5 text-[9px] font-black uppercase bg-amber-100 text-amber-700 border-none">
-                              {group.intensity}
-                            </Badge>
-                          )}
-                        </div>
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <p className="text-[11px] font-bold text-slate-800">{group.treatment}</p>
+                        {group.intensity && (
+                          <Badge variant="secondary" className="h-4 text-[8px] font-bold bg-amber-100 text-amber-700 border-none">
+                            {group.intensity}
+                          </Badge>
+                        )}
                         {group.notes && (
-                          <p className="text-xs text-slate-500 italic leading-relaxed">"{group.notes}"</p>
+                          <span className="text-[10px] text-slate-400 italic truncate max-w-[120px]">"{group.notes}"</span>
                         )}
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-1 opacity-0 group-hover/note:opacity-100 transition-opacity">
+                    <div className="flex items-center gap-0.5 opacity-0 group-hover/note:opacity-100 transition-opacity shrink-0">
                       <Button
                         variant="ghost"
                         size="icon"
-                        className="h-8 w-8 rounded-full text-slate-400 hover:text-blue-600 hover:bg-blue-50"
+                        className="h-6 w-6 rounded text-slate-400 hover:text-blue-600 hover:bg-blue-50"
                         onClick={() => handleEditZone(group.zones[0].zone)}
                       >
-                        <Edit3 className="h-3.5 w-3.5" />
+                        <Edit3 className="h-3 w-3" />
                       </Button>
                       <Button
                         variant="ghost"
                         size="icon"
-                        className="h-8 w-8 rounded-full text-slate-400 hover:text-rose-600 hover:bg-rose-50"
+                        className="h-6 w-6 rounded text-slate-400 hover:text-rose-600 hover:bg-rose-50"
                         onClick={() => {
-                          // Remove all zones in this group
                           const idsToRemove = group.zones.map(z => z.zone)
                           onZonesChange(zones.filter(z => !idsToRemove.includes(z.zone)))
                         }}
                       >
-                        <X className="h-3.5 w-3.5" />
+                        <X className="h-3 w-3" />
                       </Button>
                     </div>
                   </div>
