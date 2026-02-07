@@ -24,56 +24,56 @@ interface BodyMapProps {
 }
 
 const FRONT_ZONES = {
-  "head-front": { label: "Cabeza", cx: 100, cy: 50 },
-  "neck-front": { label: "Cuello", cx: 100, cy: 90 },
-  "left-shoulder": { label: "Hombro Izq.", cx: 142, cy: 120 },
-  "right-shoulder": { label: "Hombro Der.", cx: 58, cy: 120 },
-  "left-pec": { label: "Pectoral Izq.", cx: 122, cy: 160 },
-  "right-pec": { label: "Pectoral Der.", cx: 78, cy: 160 },
-  "left-bicep": { label: "Bícep Izq.", cx: 162, cy: 190 },
-  "right-bicep": { label: "Bícep Der.", cx: 38, cy: 190 },
-  "abs-upper": { label: "Abdomen Sup.", cx: 100, cy: 220 },
-  "abs-lower": { label: "Abdomen Inf.", cx: 100, cy: 275 },
-  "left-forearm": { label: "Antebrazo Izq.", cx: 172, cy: 265 },
-  "right-forearm": { label: "Antebrazo Der.", cx: 28, cy: 265 },
-  "left-hip": { label: "Cadera Izq.", cx: 122, cy: 305 },
-  "right-hip": { label: "Cadera Der.", cx: 78, cy: 305 },
-  "left-hand": { label: "Mano Izq.", cx: 188, cy: 335 },
-  "right-hand": { label: "Mano Der.", cx: 12, cy: 335 },
-  "left-quad": { label: "Cuádricep Izq.", cx: 122, cy: 375 },
-  "right-quad": { label: "Cuádricep Der.", cx: 78, cy: 375 },
-  "left-knee": { label: "Rodilla Izq.", cx: 122, cy: 445 },
-  "right-knee": { label: "Rodilla Der.", cx: 78, cy: 445 },
-  "left-shin": { label: "Tibia Izq.", cx: 120, cy: 510 },
-  "right-shin": { label: "Tibia Der.", cx: 80, cy: 510 },
-  "left-foot": { label: "Pie Izq.", cx: 115, cy: 575 },
-  "right-foot": { label: "Pie Der.", cx: 85, cy: 575 },
+  "head-front": { label: "Cabeza", cx: 100, cy: 55 },
+  "neck-front": { label: "Cuello", cx: 100, cy: 95 },
+  "left-shoulder": { label: "Hombro Izq.", cx: 148, cy: 130 },
+  "right-shoulder": { label: "Hombro Der.", cx: 52, cy: 130 },
+  "left-pec": { label: "Pectoral Izq.", cx: 125, cy: 165 },
+  "right-pec": { label: "Pectoral Der.", cx: 75, cy: 165 },
+  "left-bicep": { label: "Bícep Izq.", cx: 165, cy: 200 },
+  "right-bicep": { label: "Bícep Der.", cx: 35, cy: 200 },
+  "abs-upper": { label: "Abdomen Sup.", cx: 100, cy: 225 },
+  "abs-lower": { label: "Abdomen Inf.", cx: 100, cy: 285 },
+  "left-forearm": { label: "Antebrazo Izq.", cx: 175, cy: 275 },
+  "right-forearm": { label: "Antebrazo Der.", cx: 25, cy: 275 },
+  "left-hip": { label: "Cadera Izq.", cx: 125, cy: 320 },
+  "right-hip": { label: "Cadera Der.", cx: 75, cy: 320 },
+  "left-hand": { label: "Mano Izq.", cx: 190, cy: 350 },
+  "right-hand": { label: "Mano Der.", cx: 10, cy: 350 },
+  "left-quad": { label: "Cuádricep Izq.", cx: 125, cy: 390 },
+  "right-quad": { label: "Cuádricep Der.", cx: 75, cy: 390 },
+  "left-knee": { label: "Rodilla Izq.", cx: 125, cy: 455 },
+  "right-knee": { label: "Rodilla Der.", cx: 75, cy: 455 },
+  "left-shin": { label: "Tibia Izq.", cx: 122, cy: 520 },
+  "right-shin": { label: "Tibia Der.", cx: 78, cy: 520 },
+  "left-foot": { label: "Pie Izq.", cx: 118, cy: 585 },
+  "right-foot": { label: "Pie Der.", cx: 82, cy: 585 },
 }
 
 const BACK_ZONES = {
-  "head-back": { label: "Cabeza (Post.)", cx: 100, cy: 50 },
-  "neck-back": { label: "Cuello (Post.)", cx: 100, cy: 90 },
-  "left-trap": { label: "Trapecio Izq.", cx: 82, cy: 125 },
-  "right-trap": { label: "Trapecio Der.", cx: 118, cy: 125 },
-  "left-delt": { label: "Deltoides Izq.", cx: 55, cy: 135 },
-  "right-delt": { label: "Deltoides Der.", cx: 145, cy: 135 },
-  "upper-back-left": { label: "Dorsal Izq.", cx: 82, cy: 175 },
-  "upper-back-right": { label: "Dorsal Der.", cx: 118, cy: 175 },
-  "left-tricep": { label: "Trícep Izq.", cx: 48, cy: 200 },
-  "right-tricep": { label: "Trícep Der.", cx: 152, cy: 200 },
-  "mid-back": { label: "Espalda Media", cx: 100, cy: 220 },
-  "left-lower-back": { label: "Lumbar Izq.", cx: 88, cy: 280 },
-  "right-lower-back": { label: "Lumbar Der.", cx: 112, cy: 280 },
-  "left-forearm-back": { label: "Antebrazo Izq.", cx: 32, cy: 285 },
-  "right-forearm-back": { label: "Antebrazo Der.", cx: 168, cy: 285 },
-  "left-glute": { label: "Glúteo Izq.", cx: 85, cy: 335 },
-  "right-glute": { label: "Glúteo Der.", cx: 115, cy: 335 },
-  "left-hamstring": { label: "Isquiotibial Izq.", cx: 88, cy: 430 },
-  "right-hamstring": { label: "Isquiotibial Der.", cx: 112, cy: 430 },
-  "left-calf": { label: "Gemelo Izq.", cx: 88, cy: 520 },
-  "right-calf": { label: "Gemelo Der.", cx: 112, cy: 520 },
-  "left-heel": { label: "Talón Izq.", cx: 88, cy: 575 },
-  "right-heel": { label: "Talón Der.", cx: 112, cy: 575 },
+  "head-back": { label: "Cabeza (Post.)", cx: 100, cy: 55 },
+  "neck-back": { label: "Cuello (Post.)", cx: 100, cy: 95 },
+  "left-trap": { label: "Trapecio Izq.", cx: 80, cy: 130 },
+  "right-trap": { label: "Trapecio Der.", cx: 120, cy: 130 },
+  "left-delt": { label: "Deltoides Izq.", cx: 58, cy: 145 },
+  "right-delt": { label: "Deltoides Der.", cx: 142, cy: 145 },
+  "upper-back-left": { label: "Dorsal Izq.", cx: 82, cy: 185 },
+  "upper-back-right": { label: "Dorsal Der.", cx: 118, cy: 185 },
+  "left-tricep": { label: "Trícep Izq.", cx: 50, cy: 215 },
+  "right-tricep": { label: "Trícep Der.", cx: 150, cy: 215 },
+  "mid-back": { label: "Espalda Media", cx: 100, cy: 235 },
+  "left-lower-back": { label: "Lumbar Izq.", cx: 85, cy: 295 },
+  "right-lower-back": { label: "Lumbar Der.", cx: 115, cy: 295 },
+  "left-forearm-back": { label: "Antebrazo Izq.", cx: 30, cy: 300 },
+  "right-forearm-back": { label: "Antebrazo Der.", cx: 170, cy: 300 },
+  "left-glute": { label: "Glúteo Izq.", cx: 85, cy: 345 },
+  "right-glute": { label: "Glúteo Der.", cx: 115, cy: 345 },
+  "left-hamstring": { label: "Isquiotibial Izq.", cx: 88, cy: 445 },
+  "right-hamstring": { label: "Isquiotibial Der.", cx: 112, cy: 445 },
+  "left-calf": { label: "Gemelo Izq.", cx: 88, cy: 535 },
+  "right-calf": { label: "Gemelo Der.", cx: 112, cy: 535 },
+  "left-heel": { label: "Talón Izq.", cx: 90, cy: 590 },
+  "right-heel": { label: "Talón Der.", cx: 110, cy: 590 },
 }
 
 
@@ -240,7 +240,11 @@ export function BodyMap({ zones = [], onZonesChange, readOnly = false, isPatient
   }
 
   const visibleZones = isPatient ? (zones || []).filter((z) => z.visibleToPatient) : (zones || [])
-  const handleClearAll = () => onZonesChange([])
+  const handleClearAll = () => {
+    onZonesChange([])
+    setSelection([])
+    setSelectedZone(null)
+  }
 
   const PointOverlay = ({ zonesMap, side }: { zonesMap: Record<string, { label: string, cx: number, cy: number }>, side: 'front' | 'back' }) => (
     <svg viewBox="0 0 200 600" className="absolute inset-0 w-full h-full z-20 pointer-events-none">
@@ -276,20 +280,20 @@ export function BodyMap({ zones = [], onZonesChange, readOnly = false, isPatient
             <circle
               cx={zone.cx}
               cy={zone.cy}
-              r={9}
+              r={7}
               fill="white"
-              fillOpacity={isMarked || isSelected ? 0.4 : isHovered ? 0.6 : 0.15}
-              stroke="white"
-              strokeWidth="1.5"
+              fillOpacity={isMarked || isSelected ? 0.2 : isHovered ? 0.4 : 0.1}
+              stroke={isMarked ? "#10b981" : "#3b82f6"} // Green if marked, Blue if empty
+              strokeWidth="2"
               className={cn(
                 "transition-all duration-300 pointer-events-none",
-                !readOnly && (isSelected ? "r-11" : "hover:r-11")
+                !readOnly && (isSelected ? "r-8" : "hover:r-8")
               )}
             />
             {(isMarked || isSelected) && (
               <g className="pointer-events-none">
-                <circle cx={zone.cx} cy={zone.cy} r={6} fill={isSelected ? "#10b981" : "#3b82f6"} filter="url(#glow)" />
-                <circle cx={zone.cx} cy={zone.cy} r={2.5} fill="white" />
+                <circle cx={zone.cx} cy={zone.cy} r={4.5} fill={isSelected ? "#10b981" : "#3b82f6"} filter="url(#glow)" />
+                <circle cx={zone.cx} cy={zone.cy} r={2} fill="white" />
               </g>
             )}
             {selectedZone === id && (
@@ -403,8 +407,8 @@ export function BodyMap({ zones = [], onZonesChange, readOnly = false, isPatient
         {/* FRONT VIEW */}
         <div className="flex-1 flex flex-col items-center">
           <span className="text-[7px] font-bold uppercase tracking-wider text-slate-400 mb-0.5">Frontal</span>
-          <div className="relative w-full h-[360px] rounded-lg bg-white/80 overflow-hidden">
-            <img src="/images/body-front.png" alt="Frontal" className="absolute inset-0 w-full h-full object-contain" />
+          <div className="relative h-[550px] aspect-[200/600] rounded-lg bg-white/80 overflow-hidden shadow-inner ring-1 ring-slate-100">
+            <img src="/images/body-front.png" alt="Frontal" className="absolute inset-0 w-full h-full object-fill opacity-90 mix-blend-multiply" />
             <PointOverlay zonesMap={FRONT_ZONES} side="front" />
             <Popover open={showDialog && !!selectedZone && Object.keys(FRONT_ZONES).includes(selectedZone)} onOpenChange={(open) => {
               if (!open) {
@@ -431,8 +435,8 @@ export function BodyMap({ zones = [], onZonesChange, readOnly = false, isPatient
         {/* BACK VIEW */}
         <div className="flex-1 flex flex-col items-center">
           <span className="text-[7px] font-bold uppercase tracking-wider text-slate-400 mb-0.5">Posterior</span>
-          <div className="relative w-full h-[360px] rounded-lg bg-white/80 overflow-hidden">
-            <img src="/images/body-back.png" alt="Posterior" className="absolute inset-0 w-full h-full object-contain" />
+          <div className="relative h-[550px] aspect-[200/600] rounded-lg bg-white/80 overflow-hidden shadow-inner ring-1 ring-slate-100">
+            <img src="/images/body-back.png" alt="Posterior" className="absolute inset-0 w-full h-full object-fill opacity-90 mix-blend-multiply" />
             <PointOverlay zonesMap={BACK_ZONES} side="back" />
             <Popover open={showDialog && !!selectedZone && Object.keys(BACK_ZONES).includes(selectedZone)} onOpenChange={(open) => {
               if (!open) {
@@ -498,7 +502,7 @@ export function BodyMap({ zones = [], onZonesChange, readOnly = false, isPatient
                             key={z.id}
                             variant="outline"
                             className={cn(
-                              "text-[9px] font-bold py-0 px-1.5 rounded border-slate-200 bg-slate-50/50 text-slate-600",
+                              "text-[10px] font-bold py-0.5 px-2 rounded border-emerald-200 bg-emerald-50 text-emerald-800",
                               !z.visibleToPatient && "border-amber-200 bg-amber-50 text-amber-700"
                             )}
                           >

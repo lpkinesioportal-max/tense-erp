@@ -454,29 +454,29 @@ function DynamicEntryForm({
           </div>
           {hasSidebar ? (
             /* CASE A: WITH SIDEBAR (Treatment / Routine) - Compact Professional Layout */
-            <div className="grid grid-cols-1 xl:grid-cols-12 gap-3 w-full">
-              {/* LEFT COLUMN: Medical Data - Takes 8 columns for more space */}
-              <div className="xl:col-span-8 space-y-3">
+            <div className="grid grid-cols-1 xl:grid-cols-12 gap-2 w-full">
+              {/* LEFT COLUMN: Medical Data - Takes 7 columns to give more to the Map */}
+              <div className="xl:col-span-7 space-y-2">
                 {/* Session Data Sections */}
                 {sections.map(section => {
                   const fields = rawFields.filter(f => f.section === section.id && f.isActive !== false).sort((a, b) => a.order - b.order)
                   if (fields.length === 0) return null
                   return (
                     <Card key={section.id} className="border-none shadow-sm ring-1 ring-slate-200 bg-white h-fit">
-                      <CardHeader className="py-2 px-3 border-b bg-slate-50/50">
+                      <CardHeader className="py-1.5 px-3 border-b bg-slate-50/50">
                         <div className="flex items-center gap-2">
                           <div className="p-1 bg-blue-500/10 rounded">
                             <FileText className="h-3 w-3 text-blue-600" />
                           </div>
-                          <CardTitle className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">{section.title}</CardTitle>
+                          <CardTitle className="text-[9px] font-bold text-slate-500 uppercase tracking-widest">{section.title}</CardTitle>
                         </div>
                       </CardHeader>
-                      <CardContent className="p-3">
+                      <CardContent className="p-2">
                         {/* Denser grid for more compact view */}
-                        <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-x-3 gap-y-2">
+                        <div className="grid grid-cols-2 gap-x-2 gap-y-1.5">
                           {fields.map(field => (
-                            <div key={field.id} className={cn("space-y-0.5", field.type === "textarea" ? "col-span-2 lg:col-span-3 xl:col-span-4" : "col-span-1")}>
-                              <Label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1">
+                            <div key={field.id} className={cn("space-y-0.5", field.type === "textarea" ? "col-span-2" : "col-span-1")}>
+                              <Label className="text-[9px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1">
                                 {field.label} {field.required && <span className="text-red-500 font-bold">*</span>}
                               </Label>
                               <RenderFieldInput field={field} value={values[field.key]} onChange={(val: any) => setValues(p => ({ ...p, [field.key]: val }))} />
@@ -489,41 +489,39 @@ function DynamicEntryForm({
                 })}
               </div>
 
-              {/* RIGHT COLUMN: Interactive Widgets - Horizontal Layout */}
-              <div className="xl:col-span-4">
-                <div className="flex gap-2 h-full">
-                  {/* LEFT: BODY MAP */}
-                  {showBodyMap && (
-                    <Card className="border-none shadow-sm ring-1 ring-slate-200 bg-white overflow-hidden flex-[1.2] min-w-0">
-                      <CardHeader className="py-1 px-2 border-b bg-primary/[0.03]">
-                        <div className="flex items-center gap-1">
-                          <Activity className="h-2.5 w-2.5 text-primary" />
-                          <CardTitle className="text-[8px] font-bold text-slate-500 uppercase tracking-widest">Mapa Corporal</CardTitle>
-                        </div>
-                      </CardHeader>
-                      <div className="p-1 flex justify-center bg-white">
-                        <div className="w-full">
-                          <BodyMap zones={values.bodyZones || []} onZonesChange={handleBodyMapChange} readOnly={false} />
-                        </div>
+              {/* RIGHT COLUMN: Interactive Widgets - Vertical Stack for Maximum Map Height */}
+              <div className="xl:col-span-5 space-y-2">
+                {/* BODY MAP CARD */}
+                {showBodyMap && (
+                  <Card className="border-none shadow-sm ring-1 ring-slate-200 bg-white overflow-hidden w-full">
+                    <CardHeader className="py-1 px-3 border-b bg-primary/[0.03]">
+                      <div className="flex items-center gap-1.5">
+                        <Activity className="h-3 w-3 text-primary" />
+                        <CardTitle className="text-[9px] font-bold text-slate-500 uppercase tracking-widest">Mapa Corporal</CardTitle>
                       </div>
-                    </Card>
-                  )}
+                    </CardHeader>
+                    <div className="p-2 flex justify-center bg-white min-h-[500px]">
+                      <div className="w-full">
+                        <BodyMap zones={values.bodyZones || []} onZonesChange={handleBodyMapChange} readOnly={false} />
+                      </div>
+                    </div>
+                  </Card>
+                )}
 
-                  {/* RIGHT: ADHERENCIA */}
-                  {showAdherence && (
-                    <Card className="border-none shadow-sm ring-1 ring-slate-200 bg-white overflow-hidden flex-1 min-w-0 h-fit">
-                      <CardHeader className="py-1 px-2 border-b bg-pink-50/30">
-                        <div className="flex items-center gap-1">
-                          <Sparkles className="h-2.5 w-2.5 text-pink-500" />
-                          <CardTitle className="text-[8px] font-bold text-slate-500 uppercase tracking-widest">Adherencia</CardTitle>
-                        </div>
-                      </CardHeader>
-                      <CardContent className="p-1.5 bg-white">
-                        <AdherenceInput value={values.adherence} onChange={val => setValues(p => ({ ...p, adherence: val }))} />
-                      </CardContent>
-                    </Card>
-                  )}
-                </div>
+                {/* ADHERENCIA CARD */}
+                {showAdherence && (
+                  <Card className="border-none shadow-sm ring-1 ring-slate-200 bg-white overflow-hidden w-full h-fit">
+                    <CardHeader className="py-1 px-3 border-b bg-pink-50/30">
+                      <div className="flex items-center gap-1.5">
+                        <Sparkles className="h-3 w-3 text-pink-500" />
+                        <CardTitle className="text-[9px] font-bold text-slate-500 uppercase tracking-widest">Adherencia y Puntos</CardTitle>
+                      </div>
+                    </CardHeader>
+                    <CardContent className="p-3 bg-white">
+                      <AdherenceInput value={values.adherence} onChange={val => setValues(p => ({ ...p, adherence: val }))} />
+                    </CardContent>
+                  </Card>
+                )}
               </div>
             </div>
           ) : (
