@@ -520,7 +520,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     return result
   }
 
-  // Sync data to Supabase (async, non-blocking)
+  // Sync data to Supabase (async, non-blocking) - handles upserts and deletions
   const syncToSupabase = async <T extends { id: string }>(
     tableName: string,
     items: T[]
@@ -528,12 +528,40 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     if (!isSupabaseConfigured() || typeof window === "undefined") return
 
     try {
+      // Get current IDs in local state
+      const localIds = new Set(items.map(item => item.id))
+
+      // Upsert all current items
       for (const item of items) {
         const snakeCaseItem = toSnakeCase(item as Record<string, any>)
         await supabase.from(tableName).upsert(snakeCaseItem, { onConflict: 'id' })
       }
+
+      // Fetch existing IDs from Supabase to find deleted items
+      const { data: existingItems } = await supabase.from(tableName).select('id')
+      if (existingItems) {
+        for (const existing of existingItems) {
+          if (!localIds.has(existing.id)) {
+            // This item was deleted locally, delete from Supabase
+            await supabase.from(tableName).delete().eq('id', existing.id)
+            console.log(`[Supabase Sync] Deleted ${existing.id} from ${tableName}`)
+          }
+        }
+      }
     } catch (err) {
       console.error(`[Supabase Sync] Error syncing to ${tableName}:`, err)
+    }
+  }
+
+  // Delete single item from Supabase
+  const deleteFromSupabase = async (tableName: string, id: string): Promise<void> => {
+    if (!isSupabaseConfigured() || typeof window === "undefined") return
+
+    try {
+      await supabase.from(tableName).delete().eq('id', id)
+      console.log(`[Supabase Sync] Deleted ${id} from ${tableName}`)
+    } catch (err) {
+      console.error(`[Supabase Sync] Error deleting from ${tableName}:`, err)
     }
   }
 
