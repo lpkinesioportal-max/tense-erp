@@ -331,6 +331,47 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     return defaultValue
   }
 
+  // Helper to convert snake_case to camelCase
+  const toCamelCase = (obj: Record<string, any>): Record<string, any> => {
+    const result: Record<string, any> = {}
+    for (const key in obj) {
+      const camelKey = key.replace(/_([a-z])/g, (_, letter) => letter.toUpperCase())
+      result[camelKey] = obj[key]
+    }
+    return result
+  }
+
+  // Load from Supabase first, fallback to localStorage
+  const loadFromSupabaseOrStorage = async <T,>(
+    tableName: string,
+    localStorageKey: string,
+    defaultValue: T[]
+  ): Promise<T[]> => {
+    if (!isSupabaseConfigured()) {
+      return loadFromStorage(localStorageKey, defaultValue)
+    }
+
+    try {
+      const { data, error } = await supabase.from(tableName).select('*')
+
+      if (error) {
+        console.error(`[Supabase Load] Error fetching ${tableName}:`, error.message)
+        return loadFromStorage(localStorageKey, defaultValue)
+      }
+
+      if (data && data.length > 0) {
+        console.log(`[Supabase Load] Loaded ${data.length} items from ${tableName}`)
+        return data.map(row => toCamelCase(row) as T)
+      }
+
+      // No data in Supabase, fallback to localStorage
+      return loadFromStorage(localStorageKey, defaultValue)
+    } catch (err) {
+      console.error(`[Supabase Load] Failed to load ${tableName}:`, err)
+      return loadFromStorage(localStorageKey, defaultValue)
+    }
+  }
+
   const [tasks, setTasks] = useState<StaffTask[]>([])
   const [goals, setGoals] = useState<StaffGoal[]>([])
 
@@ -346,12 +387,38 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   )
 
   useEffect(() => {
-    if (typeof window !== "undefined") {
-      const storedAppts = loadFromStorage("tense_erp_appointments", mockAppointments)
-      setAppointments(storedAppts.length > 0 ? storedAppts : mockAppointments)
+    const loadData = async () => {
+      if (typeof window === "undefined") return
 
-      const storedClients = loadFromStorage<Client[]>("tense_erp_clients", mockClients)
-      const mergedClients = [...storedClients]
+      // Load from Supabase first for main entities, fallback to localStorage
+      const [supabaseAppts, supabaseClients, supabaseProfs, supabaseUsers] = await Promise.all([
+        loadFromSupabaseOrStorage<Appointment>(
+          SYNC_CONFIG.appointments.tableName,
+          SYNC_CONFIG.appointments.localStorageKey,
+          mockAppointments
+        ),
+        loadFromSupabaseOrStorage<Client>(
+          SYNC_CONFIG.clients.tableName,
+          SYNC_CONFIG.clients.localStorageKey,
+          mockClients
+        ),
+        loadFromSupabaseOrStorage<Professional>(
+          SYNC_CONFIG.professionals.tableName,
+          SYNC_CONFIG.professionals.localStorageKey,
+          mockProfessionals
+        ),
+        loadFromSupabaseOrStorage<User>(
+          SYNC_CONFIG.users.tableName,
+          SYNC_CONFIG.users.localStorageKey,
+          mockUsers
+        ),
+      ])
+
+      // Set appointments
+      setAppointments(supabaseAppts.length > 0 ? supabaseAppts : mockAppointments)
+
+      // Merge clients with mock data
+      const mergedClients = [...supabaseClients]
       mockClients.forEach((mc) => {
         if (!mergedClients.some((c) => c.id === mc.id)) {
           mergedClients.push(mc)
@@ -359,8 +426,8 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       })
       setClients(mergedClients)
 
-      const storedProfs = loadFromStorage<Professional[]>("tense_erp_professionals", mockProfessionals)
-      const mergedProfs = [...storedProfs]
+      // Merge professionals with mock data
+      const mergedProfs = [...supabaseProfs]
       mockProfessionals.forEach((mp) => {
         if (!mergedProfs.some((p) => p.id === mp.id)) {
           mergedProfs.push(mp)
@@ -368,9 +435,9 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       })
       setProfessionals(mergedProfs)
 
-      const loadedUsers = loadFromStorage<User[]>("tense_erp_users", mockUsers)
-      console.log("Usuarios cargados de storage:", loadedUsers.length)
-      let mergedUsers = [...loadedUsers]
+      // Merge users with mock data
+      console.log("Usuarios cargados de Supabase/storage:", supabaseUsers.length)
+      let mergedUsers = [...supabaseUsers]
       mockUsers.forEach((mu) => {
         if (!mergedUsers.some((u) => u.id === mu.id)) {
           mergedUsers.push(mu)
@@ -498,6 +565,8 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
 
       setIsInitialized(true)
     }
+
+    loadData()
   }, [])
 
   const saveToStorage = <T,>(key: string, value: T): void => {
