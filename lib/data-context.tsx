@@ -423,47 +423,10 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       const finalUsers = !isFirstRun ? supabaseUsers : mockUsers
       setUsers(finalUsers)
 
-      const mergedProfs = finalProfs
-      const mergedUsers = [...finalUsers]
+      setTransactions(loadFromStorage("tense_erp_transactions", mockTransactions))
+      setSettlements(loadFromStorage("tense_erp_settlements", mockSettlements))
 
-      // Asegurar que cada profesional tenga un usuario
-      mergedProfs.forEach(prof => {
-        if (!mergedUsers.some(u => u.professionalId === prof.id || u.email === prof.email)) {
-          mergedUsers.push({
-            id: `user-${prof.id}-${Date.now()}`,
-            name: prof.name,
-            email: prof.email,
-            role: "profesional",
-            status: prof.isActive ? "active" : "inactive",
-            isActive: prof.isActive,
-            professionalId: prof.id,
-            password: prof.password || "123456",
-            createdAt: new Date()
-          })
-        }
-      })
-
-      // Asegurar que cada cliente tenga un usuario
-      finalClients.forEach(client => {
-        if (!mergedUsers.some(u => u.clientId === client.id || u.email === client.email)) {
-          mergedUsers.push({
-            id: `user-${client.id}-${Date.now()}`,
-            name: client.name,
-            email: client.email || `${client.name.toLowerCase().replace(/\s/g, '.')}@tense.com`,
-            role: "cliente",
-            status: "active",
-            isActive: true,
-            clientId: client.id,
-            password: client.password || "123456",
-            createdAt: new Date()
-          })
-        }
-      })
-
-      const usersToMigrate = mergedUsers
-      console.log("Usuarios a usar (con merge):", usersToMigrate.length)
-
-      const migratedUsers = usersToMigrate.map((u: User) => {
+      const migratedUsers = finalUsers.map((u: User) => {
         if (u.role === "super_admin") {
           return {
             ...u,
@@ -488,9 +451,6 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       setUsers(migratedUsers)
       console.log("Estado de usuarios seteado con:", migratedUsers.length)
       saveToStorage("tense_erp_users", migratedUsers)
-
-      setTransactions(loadFromStorage("tense_erp_transactions", mockTransactions))
-      setSettlements(loadFromStorage("tense_erp_settlements", mockSettlements))
 
       const storedServices = loadFromStorage("tense_erp_serviceConfigs", mockServiceConfigs)
       setServiceConfigs(storedServices.length > 0 ? storedServices : mockServiceConfigs)
@@ -874,8 +834,25 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   }
 
   const deleteUser = (id: string) => {
+    const user = users.find(u => u.id === id)
+    console.log(`[Cascaded Delete] Deleting user: ${id}`)
+
     setUsers((prev) => prev.filter((u) => u.id !== id))
     deleteFromSupabase(SYNC_CONFIG.users.tableName, id)
+
+    // Delete linked professional if exists
+    if (user?.professionalId) {
+      console.log(`[Cascaded Delete] Linking: Deleting professional ${user.professionalId}`)
+      setProfessionals(prev => prev.filter(p => p.id !== user.professionalId))
+      deleteFromSupabase(SYNC_CONFIG.professionals.tableName, user.professionalId)
+    }
+
+    // Delete linked client if exists
+    if (user?.clientId) {
+      console.log(`[Cascaded Delete] Linking: Deleting client ${user.clientId}`)
+      setClients(prev => prev.filter(c => c.id !== user.clientId))
+      deleteFromSupabase(SYNC_CONFIG.clients.tableName, user.clientId)
+    }
   }
 
   // Professionals
@@ -950,13 +927,16 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   }
 
   const deleteProfessional = (id: string) => {
+    console.log(`[Cascaded Delete] Deleting professional: ${id}`)
     setProfessionals((prev) => prev.filter((p) => p.id !== id))
     deleteFromSupabase(SYNC_CONFIG.professionals.tableName, id)
 
-    // También eliminamos el usuario asociado si es necesario
+    // Also delete associated user
     const userToDelete = users.find(u => u.professionalId === id)
     if (userToDelete) {
-      deleteUser(userToDelete.id)
+      console.log(`[Cascaded Delete] Linking: Deleting user ${userToDelete.id}`)
+      setUsers((prev) => prev.filter((u) => u.id !== userToDelete.id))
+      deleteFromSupabase(SYNC_CONFIG.users.tableName, userToDelete.id)
     }
   }
 
@@ -1023,13 +1003,16 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   }
 
   const deleteClient = (id: string) => {
+    console.log(`[Cascaded Delete] Deleting client: ${id}`)
     setClients((prev) => prev.filter((c) => c.id !== id))
     deleteFromSupabase(SYNC_CONFIG.clients.tableName, id)
 
-    // También eliminamos el usuario asociado
+    // Also delete associated user
     const userToDelete = users.find(u => u.clientId === id)
     if (userToDelete) {
-      deleteUser(userToDelete.id)
+      console.log(`[Cascaded Delete] Linking: Deleting user ${userToDelete.id}`)
+      setUsers((prev) => prev.filter((u) => u.id !== userToDelete.id))
+      deleteFromSupabase(SYNC_CONFIG.users.tableName, userToDelete.id)
     }
   }
 
