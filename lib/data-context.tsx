@@ -405,20 +405,22 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         ),
       ])
 
+      // Use Supabase clients exclusively (only fallback to mock if DB is empty AND no users exist)
+      const isFirstRun = supabaseProfs.length === 0 && supabaseClients.length === 0 && supabaseUsers.length === 0;
+
       // Set appointments
       setAppointments(supabaseAppts.length > 0 ? supabaseAppts : mockAppointments)
 
-      // Use Supabase clients exclusively (only fallback to mock if DB is empty)
-      const finalClients = supabaseClients.length > 0 ? supabaseClients : mockClients
+      const finalClients = !isFirstRun ? supabaseClients : mockClients
       setClients(finalClients)
 
-      // Use Supabase professionals exclusively (only fallback to mock if DB is empty)
-      const finalProfs = supabaseProfs.length > 0 ? supabaseProfs : mockProfessionals
+      // Use Supabase professionals exclusively
+      const finalProfs = !isFirstRun ? supabaseProfs : mockProfessionals
       setProfessionals(finalProfs)
 
       // Use Supabase users exclusively
       console.log("Usuarios cargados de Supabase:", supabaseUsers.length)
-      const finalUsers = supabaseUsers.length > 0 ? supabaseUsers : mockUsers
+      const finalUsers = !isFirstRun ? supabaseUsers : mockUsers
       setUsers(finalUsers)
 
       const mergedProfs = finalProfs
@@ -627,34 +629,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     }
   }, [chatMessages, isInitialized])
 
-  useEffect(() => {
-    if (isInitialized) {
-      // Sync to Supabase ONLY (no localStorage)
-      syncToSupabase(SYNC_CONFIG.appointments.tableName, appointments)
-    }
-  }, [appointments, isInitialized])
-
-  useEffect(() => {
-    if (isInitialized) {
-      // Sync to Supabase ONLY (no localStorage)
-      syncToSupabase(SYNC_CONFIG.clients.tableName, clients)
-    }
-  }, [clients, isInitialized])
-
-  useEffect(() => {
-    if (isInitialized) {
-      // Sync to Supabase ONLY (no localStorage)
-      syncToSupabase(SYNC_CONFIG.professionals.tableName, professionals)
-    }
-  }, [professionals, isInitialized])
-
-  useEffect(() => {
-    if (isInitialized) {
-      // Sync to Supabase ONLY (no localStorage)
-      syncToSupabase(SYNC_CONFIG.users.tableName, users)
-    }
-  }, [users, isInitialized])
-
+  // Transactions Persistence
   useEffect(() => {
     if (isInitialized) {
       saveToStorage("tense_erp_transactions", transactions)
@@ -827,6 +802,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         notes: "Creado desde gestión del equipo",
       }
       setClients((prev) => [...prev, newClient])
+      syncToSupabase(SYNC_CONFIG.clients.tableName, [newClient])
     }
 
     // Si el rol es profesional, también lo agregamos a la lista de profesionales
@@ -858,6 +834,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         },
       }
       setProfessionals((prev) => [...prev, newProfessional])
+      syncToSupabase(SYNC_CONFIG.professionals.tableName, [newProfessional])
 
       // Creamos su caja automática
       setCashRegisters((prev) => [
@@ -875,25 +852,30 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     }
 
     setUsers((prev) => [...prev, newUser])
+    syncToSupabase(SYNC_CONFIG.users.tableName, [newUser])
   }
 
   const updateUser = (id: string, data: Partial<User>) => {
-    setUsers((prev) => prev.map((u) => (u.id === id ? { ...u, ...data } : u)))
+    setUsers((prev) => {
+      const updated = prev.map((u) => (u.id === id ? { ...u, ...data } : u))
+      const updatedUser = updated.find(u => u.id === id)
+      if (updatedUser) {
+        syncToSupabase(SYNC_CONFIG.users.tableName, [updatedUser])
+      }
+      return updated
+    })
 
     // Sincronizar con profesional si aplica
     const user = users.find(u => u.id === id)
     if (user?.professionalId && (data.status !== undefined || data.isActive !== undefined)) {
       const isActive = data.isActive !== undefined ? data.isActive : (data.status === "active")
-      setProfessionals(prev => prev.map(p =>
-        p.id === user.professionalId ? { ...p, isActive, status: isActive ? "active" : "inactive" } : p
-      ))
+      updateProfessional(user.professionalId, { isActive, status: isActive ? "active" : "inactive" })
     }
-
-    // Sincronizar con cliente si aplica (aunque los clientes usualmente no tienen isActive/status en su tipo base)
   }
 
   const deleteUser = (id: string) => {
     setUsers((prev) => prev.filter((u) => u.id !== id))
+    deleteFromSupabase(SYNC_CONFIG.users.tableName, id)
   }
 
   // Professionals
@@ -932,10 +914,20 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         transactions: [],
       },
     ])
+
+    // Sync to Supabase directly
+    syncToSupabase(SYNC_CONFIG.professionals.tableName, [newProfessional])
   }
 
   const updateProfessional = (id: string, data: Partial<Professional>) => {
-    setProfessionals((prev) => prev.map((p) => (p.id === id ? { ...p, ...data } : p)))
+    setProfessionals((prev) => {
+      const updated = prev.map((p) => (p.id === id ? { ...p, ...data } : p))
+      const updatedProf = updated.find(p => p.id === id)
+      if (updatedProf) {
+        syncToSupabase(SYNC_CONFIG.professionals.tableName, [updatedProf])
+      }
+      return updated
+    })
 
     // Sincronizamos con el usuario vinculado
     if (data.name || data.email || data.isActive !== undefined || data.status !== undefined) {
@@ -959,6 +951,13 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
 
   const deleteProfessional = (id: string) => {
     setProfessionals((prev) => prev.filter((p) => p.id !== id))
+    deleteFromSupabase(SYNC_CONFIG.professionals.tableName, id)
+
+    // También eliminamos el usuario asociado si es necesario
+    const userToDelete = users.find(u => u.professionalId === id)
+    if (userToDelete) {
+      deleteUser(userToDelete.id)
+    }
   }
 
   // Clients
@@ -967,41 +966,70 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     const newClient: Client = { ...client, id: clientId, createdAt: new Date() }
 
     // Al agregar un cliente, también creamos su cuenta de usuario para que pueda acceder
+    const newUser: User = {
+      id: `user-${Date.now()}`,
+      name: client.name,
+      email: client.email,
+      role: "cliente",
+      status: "active",
+      isActive: true,
+      clientId: clientId,
+      password: client.password || "123456",
+      createdAt: new Date()
+    }
+
     setUsers((prev) => {
       if (prev.some(u => u.email === client.email)) return prev;
-
-      const newUser: User = {
-        id: `user-${Date.now()}`,
-        name: client.name,
-        email: client.email,
-        role: "cliente",
-        status: "active",
-        isActive: true,
-        clientId: clientId,
-        password: client.password || "123456",
-        createdAt: new Date()
-      }
       return [...prev, newUser]
     })
 
+    // Sync User if it's new
+    if (!users.some(u => u.email === client.email)) {
+      syncToSupabase(SYNC_CONFIG.users.tableName, [newUser])
+    }
+
     setClients((prev) => [...prev, newClient])
+    syncToSupabase(SYNC_CONFIG.clients.tableName, [newClient])
   }
 
   const updateClient = (id: string, data: Partial<Client>) => {
-    setClients((prev) => prev.map((c) => (c.id === id ? { ...c, ...data } : c)))
+    setClients((prev) => {
+      const updated = prev.map((c) => (c.id === id ? { ...c, ...data } : c))
+      const updatedClient = updated.find(c => c.id === id)
+      if (updatedClient) {
+        syncToSupabase(SYNC_CONFIG.clients.tableName, [updatedClient])
+      }
+      return updated
+    })
 
     // Sincronizamos cambios básicos con el usuario vinculado
     if (data.name || data.email) {
-      setUsers((prev) => prev.map((u) => {
-        if (u.clientId === id) {
-          return {
-            ...u,
-            ...(data.name ? { name: data.name } : {}),
-            ...(data.email ? { email: data.email } : {})
+      setUsers((prev) => {
+        const updated = prev.map((u) => {
+          if (u.clientId === id) {
+            const upUser = {
+              ...u,
+              ...(data.name ? { name: data.name } : {}),
+              ...(data.email ? { email: data.email } : {})
+            }
+            syncToSupabase(SYNC_CONFIG.users.tableName, [upUser])
+            return upUser
           }
-        }
-        return u
-      }))
+          return u
+        })
+        return updated
+      })
+    }
+  }
+
+  const deleteClient = (id: string) => {
+    setClients((prev) => prev.filter((c) => c.id !== id))
+    deleteFromSupabase(SYNC_CONFIG.clients.tableName, id)
+
+    // También eliminamos el usuario asociado
+    const userToDelete = users.find(u => u.clientId === id)
+    if (userToDelete) {
+      deleteUser(userToDelete.id)
     }
   }
 
@@ -1175,16 +1203,25 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     }
     setAppointments((prev) => {
       const updated = [...prev, newAppointment]
-      localStorage.setItem("mockAppointments", JSON.stringify(updated))
       return updated
     })
+
+    // Sync to Supabase directly
+    syncToSupabase(SYNC_CONFIG.appointments.tableName, [newAppointment])
   }
 
   const updateAppointmentStatus = (id: string, status: AppointmentStatus) => {
     const apt = appointments.find((a) => a.id === id)
     if (!apt || apt.status === status) return
 
-    setAppointments((prev) => prev.map((a) => (a.id === id ? { ...a, status } : a)))
+    setAppointments((prev) => {
+      const updated = prev.map((a) => (a.id === id ? { ...a, status } : a))
+      const updatedApt = updated.find(a => a.id === id)
+      if (updatedApt) {
+        syncToSupabase(SYNC_CONFIG.appointments.tableName, [updatedApt])
+      }
+      return updated
+    })
 
     // Points logic
     if (status === "attended" || status === "no_show") {
@@ -1230,7 +1267,10 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   const updateAppointment = (id: string, data: Partial<Appointment>) => {
     setAppointments((prev) => {
       const updated = prev.map((a) => (a.id === id ? { ...a, ...data } : a))
-      localStorage.setItem("mockAppointments", JSON.stringify(updated))
+      const updatedApt = updated.find(a => a.id === id)
+      if (updatedApt) {
+        syncToSupabase(SYNC_CONFIG.appointments.tableName, [updatedApt])
+      }
       return updated
     })
   }
@@ -1253,12 +1293,12 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         ? appointment.transferCollected + payment.amount
         : appointment.transferCollected
 
-    setAppointments((prev) =>
-      prev.map((a) =>
+    setAppointments((prev) => {
+      const updated = prev.map((a) =>
         a.id === appointmentId
           ? {
             ...a,
-            payments: [...a.payments, newPayment],
+            payments: [...(a.payments || []), newPayment],
             paidAmount: newPaidAmount,
             cashCollected: newCashCollected,
             transferCollected: newTransfers,
@@ -1270,8 +1310,13 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
             status: a.status === "pending_deposit" && (payment.isDeposit || newPaidAmount >= a.recommendedDeposit || newPaidAmount >= a.finalPrice) ? "confirmed" : a.status,
           }
           : a,
-      ),
-    )
+      )
+      const updatedApt = updated.find(a => a.id === appointmentId)
+      if (updatedApt) {
+        syncToSupabase(SYNC_CONFIG.appointments.tableName, [updatedApt])
+      }
+      return updated
+    })
 
     const txn: Transaction = {
       id: `txn-${Date.now()}`,
@@ -1321,7 +1366,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         a.id === appointmentId
           ? {
             ...a,
-            payments: a.payments.filter((p) => p.id !== paymentId),
+            payments: (a.payments || []).filter((p) => p.id !== paymentId),
             paidAmount: newPaidAmount,
             cashCollected: newCashCollected,
             transferCollected: newTransfers,
@@ -1330,7 +1375,10 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
           }
           : a,
       )
-      localStorage.setItem("mockAppointments", JSON.stringify(updated))
+      const updatedApt = updated.find(a => a.id === appointmentId)
+      if (updatedApt) {
+        syncToSupabase(SYNC_CONFIG.appointments.tableName, [updatedApt])
+      }
       return updated
     })
 
@@ -1345,11 +1393,8 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   }
 
   const deleteAppointment = (appointmentId: string) => {
-    setAppointments((prev) => {
-      const updated = prev.filter((a) => a.id !== appointmentId)
-      localStorage.setItem("mockAppointments", JSON.stringify(updated))
-      return updated
-    })
+    setAppointments((prev) => prev.filter((a) => a.id !== appointmentId))
+    deleteFromSupabase(SYNC_CONFIG.appointments.tableName, appointmentId)
   }
 
   // Transactions
