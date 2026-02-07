@@ -57,6 +57,8 @@ import {
   chatMessages as mockChatMessages,
   mockOccupationGoals,
 } from "./mock-data"
+import { supabase, isSupabaseConfigured } from "./supabase-client"
+import { SYNC_CONFIG } from "./supabase-sync"
 
 const mockClinicalTasks: ClinicalTask[] = []
 const mockClinicalTaskEvents: ClinicalTaskEvent[] = []
@@ -508,6 +510,33 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     }
   }
 
+  // Helper to convert camelCase to snake_case for Supabase
+  const toSnakeCase = (obj: Record<string, any>): Record<string, any> => {
+    const result: Record<string, any> = {}
+    for (const key in obj) {
+      const snakeKey = key.replace(/([A-Z])/g, '_$1').toLowerCase()
+      result[snakeKey] = obj[key]
+    }
+    return result
+  }
+
+  // Sync data to Supabase (async, non-blocking)
+  const syncToSupabase = async <T extends { id: string }>(
+    tableName: string,
+    items: T[]
+  ): Promise<void> => {
+    if (!isSupabaseConfigured() || typeof window === "undefined") return
+
+    try {
+      for (const item of items) {
+        const snakeCaseItem = toSnakeCase(item as Record<string, any>)
+        await supabase.from(tableName).upsert(snakeCaseItem, { onConflict: 'id' })
+      }
+    } catch (err) {
+      console.error(`[Supabase Sync] Error syncing to ${tableName}:`, err)
+    }
+  }
+
   // Chats Persistence
   useEffect(() => {
     if (isInitialized) {
@@ -524,24 +553,32 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (isInitialized) {
       saveToStorage("tense_erp_appointments", appointments)
+      // Sync to Supabase
+      syncToSupabase(SYNC_CONFIG.appointments.tableName, appointments)
     }
   }, [appointments, isInitialized])
 
   useEffect(() => {
     if (isInitialized) {
       saveToStorage("tense_erp_clients", clients)
+      // Sync to Supabase
+      syncToSupabase(SYNC_CONFIG.clients.tableName, clients)
     }
   }, [clients, isInitialized])
 
   useEffect(() => {
     if (isInitialized) {
       saveToStorage("tense_erp_professionals", professionals)
+      // Sync to Supabase
+      syncToSupabase(SYNC_CONFIG.professionals.tableName, professionals)
     }
   }, [professionals, isInitialized])
 
   useEffect(() => {
     if (isInitialized) {
       saveToStorage("tense_erp_users", users)
+      // Sync to Supabase
+      syncToSupabase(SYNC_CONFIG.users.tableName, users)
     }
   }, [users, isInitialized])
 

@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { supabase, isSupabaseConfigured } from "@/lib/supabase-client"
 import { SYNC_CONFIG, migrateLocalStorageToSupabase, checkSupabaseConnection } from "@/lib/supabase-sync"
 
@@ -12,7 +12,7 @@ interface MigrationStatus {
 }
 
 export default function MigratePage() {
-    const [connectionStatus, setConnectionStatus] = useState<string>("Verificando...")
+    const [connectionStatus, setConnectionStatus] = useState<string>("Verificando conexión...")
     const [isConnected, setIsConnected] = useState<boolean | null>(null)
     const [migrations, setMigrations] = useState<MigrationStatus[]>([
         { entity: "Profesionales", status: "pending", count: 0, errors: [] },
@@ -23,10 +23,21 @@ export default function MigratePage() {
     const [isRunning, setIsRunning] = useState(false)
 
     const checkConnection = async () => {
-        const result = await checkSupabaseConnection()
-        setIsConnected(result.connected)
-        setConnectionStatus(result.message)
+        setConnectionStatus("Verificando...")
+        try {
+            const result = await checkSupabaseConnection()
+            setIsConnected(result.connected)
+            setConnectionStatus(result.connected ? "✅ Conectado a Supabase" : `❌ ${result.message}`)
+        } catch (err: any) {
+            setIsConnected(false)
+            setConnectionStatus(`❌ Error: ${err.message}`)
+        }
     }
+
+    // Auto-check connection on mount
+    useEffect(() => {
+        checkConnection()
+    }, [])
 
     const loadLocalData = (key: string) => {
         if (typeof window === "undefined") return []
@@ -93,7 +104,7 @@ export default function MigratePage() {
 
                 {/* Connection Status */}
                 <div className={`p-4 rounded-lg mb-6 ${isConnected === null ? "bg-gray-100" :
-                        isConnected ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"
+                    isConnected ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"
                     }`}>
                     <div className="flex items-center gap-2">
                         <span className="font-medium">Estado de conexión:</span>
@@ -130,8 +141,8 @@ export default function MigratePage() {
                     onClick={runMigration}
                     disabled={isRunning || isConnected === false}
                     className={`w-full py-3 px-6 rounded-lg font-semibold text-white transition ${isRunning || isConnected === false
-                            ? "bg-gray-400 cursor-not-allowed"
-                            : "bg-blue-600 hover:bg-blue-700"
+                        ? "bg-gray-400 cursor-not-allowed"
+                        : "bg-blue-600 hover:bg-blue-700"
                         }`}
                 >
                     {isRunning ? "Migrando..." : "Iniciar Migración"}

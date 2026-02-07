@@ -41,7 +41,6 @@ export default function RootLayout({
   return (
     <html lang="es">
       <body className={`font-sans antialiased`}>
-        <script dangerouslySetInnerHTML={{ __html: `alert("RECARGA GLOBAL OK");` }} />
         <AuthProvider>
           <DataProvider>
             {children}
