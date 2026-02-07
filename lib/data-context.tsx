@@ -408,32 +408,21 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       // Set appointments
       setAppointments(supabaseAppts.length > 0 ? supabaseAppts : mockAppointments)
 
-      // Merge clients with mock data
-      const mergedClients = [...supabaseClients]
-      mockClients.forEach((mc) => {
-        if (!mergedClients.some((c) => c.id === mc.id)) {
-          mergedClients.push(mc)
-        }
-      })
-      setClients(mergedClients)
+      // Use Supabase clients exclusively (only fallback to mock if DB is empty)
+      const finalClients = supabaseClients.length > 0 ? supabaseClients : mockClients
+      setClients(finalClients)
 
-      // Merge professionals with mock data
-      const mergedProfs = [...supabaseProfs]
-      mockProfessionals.forEach((mp) => {
-        if (!mergedProfs.some((p) => p.id === mp.id)) {
-          mergedProfs.push(mp)
-        }
-      })
-      setProfessionals(mergedProfs)
+      // Use Supabase professionals exclusively (only fallback to mock if DB is empty)
+      const finalProfs = supabaseProfs.length > 0 ? supabaseProfs : mockProfessionals
+      setProfessionals(finalProfs)
 
-      // Merge users with mock data
-      console.log("Usuarios cargados de Supabase/storage:", supabaseUsers.length)
-      let mergedUsers = [...supabaseUsers]
-      mockUsers.forEach((mu) => {
-        if (!mergedUsers.some((u) => u.id === mu.id)) {
-          mergedUsers.push(mu)
-        }
-      })
+      // Use Supabase users exclusively
+      console.log("Usuarios cargados de Supabase:", supabaseUsers.length)
+      const finalUsers = supabaseUsers.length > 0 ? supabaseUsers : mockUsers
+      setUsers(finalUsers)
+
+      const mergedProfs = finalProfs
+      const mergedUsers = [...finalUsers]
 
       // Asegurar que cada profesional tenga un usuario
       mergedProfs.forEach(prof => {
@@ -453,7 +442,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       })
 
       // Asegurar que cada cliente tenga un usuario
-      mergedClients.forEach(client => {
+      finalClients.forEach(client => {
         if (!mergedUsers.some(u => u.clientId === client.id || u.email === client.email)) {
           mergedUsers.push({
             id: `user-${client.id}-${Date.now()}`,
