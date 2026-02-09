@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useMemo, useEffect } from "react"
+import { useState, useMemo, useEffect, useRef } from "react"
 import { useParams, useRouter } from "next/navigation"
 import { useAuth } from "@/lib/auth-context"
 import { useData } from "@/lib/data-context"
@@ -127,7 +127,7 @@ export default function PatientHistoryPage() {
     // Filter by types belonging to active category
     return items
       .filter(item => activeCategoryConfig.types.includes(item._type))
-      .sort((a, b) => new Date(b.date || b.createdAt).getTime() - new Date(a.date || a.createdAt).getTime())
+      .sort((a, b) => new Date(a.date || a.createdAt).getTime() - new Date(b.date || b.createdAt).getTime())
 
   }, [record, activeCategoryConfig])
 
@@ -234,28 +234,64 @@ export default function PatientHistoryPage() {
 
                 if (!typeInfo) return null
 
+                // Create a scroll function ref for this type's card container
+                const scrollContainerId = `scroll-${type}`
+
                 return (
                   <div key={type} className="space-y-4">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <div className={cn("p-1.5 rounded-md", typeInfo.color.replace('bg-', 'bg-').replace('600', '100').replace('500', '100'))}>
-                          <typeInfo.icon className={cn("h-4 w-4", typeInfo.color.replace('bg-', 'text-'))} />
-                        </div>
-                        <h3 className="font-semibold text-slate-800">{typeInfo.label}</h3>
-                        <Badge variant="secondary" className="bg-slate-100 text-slate-600 border-slate-200">
-                          {items.length}
-                        </Badge>
+                    {/* Header with title */}
+                    <div className="flex items-center gap-2">
+                      <div className={cn("p-1.5 rounded-md", typeInfo.color.replace('bg-', 'bg-').replace('600', '100').replace('500', '100'))}>
+                        <typeInfo.icon className={cn("h-4 w-4", typeInfo.color.replace('bg-', 'text-'))} />
                       </div>
-                      {/* Optional: Add "Ver todo" link if specific list view needed */}
+                      <h3 className="font-semibold text-slate-800">{typeInfo.label}</h3>
+                      <Badge variant="secondary" className="bg-slate-100 text-slate-600 border-slate-200">
+                        {items.length}
+                      </Badge>
                     </div>
 
+                    {/* NAVIGATION BAR - Always visible when there are cards */}
+                    {items.length > 0 && (
+                      <div
+                        className="bg-blue-50 border border-blue-200 rounded-lg p-3 flex items-center justify-between"
+                      >
+                        <span className="text-sm text-blue-700">
+                          {items.length} {items.length === 1 ? 'ficha' : 'fichas'} disponibles
+                        </span>
+                        <div className="flex items-center gap-3">
+                          <span
+                            onClick={() => {
+                              const el = document.getElementById(scrollContainerId)
+                              if (el) el.scrollBy({ left: -400, behavior: 'smooth' })
+                            }}
+                            style={{ padding: '8px 16px', backgroundColor: '#2563eb', color: 'white', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}
+                          >
+                            ← Anterior
+                          </span>
+                          <span
+                            onClick={() => {
+                              const el = document.getElementById(scrollContainerId)
+                              if (el) el.scrollBy({ left: 400, behavior: 'smooth' })
+                            }}
+                            style={{ padding: '8px 16px', backgroundColor: '#2563eb', color: 'white', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}
+                          >
+                            Siguiente →
+                          </span>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Cards container */}
                     {items.length === 0 ? (
                       <div className="flex flex-col items-center justify-center p-8 bg-white rounded-xl border border-dashed border-slate-200 text-slate-400">
                         <typeInfo.icon className="h-8 w-8 mb-2 opacity-20" />
                         <span className="text-sm">Sin registros aún</span>
                       </div>
                     ) : (
-                      <div className="flex overflow-x-auto gap-4 pb-4 snap-x pr-4 -mx-6 px-6 scrollbar-hide">
+                      <div
+                        id={scrollContainerId}
+                        className="flex overflow-x-auto gap-4 pb-4 snap-x scrollbar-hide"
+                      >
                         {items.map((item, idx) => (
                           <FichaDisplay
                             key={item.id || idx}
@@ -658,12 +694,13 @@ function FichaDisplay({ item, config, typeInfo }: { item: any, config: Partial<C
 
   // Sort sections
   const sections = config.sections?.filter(s => s.isActive).sort((a, b) => a.order - b.order) || []
+  const allFields = config.fields?.filter(f => f.isActive !== false).sort((a, b) => a.order - b.order) || []
 
   return (
     <Dialog open={isOpen} onOpenChange={setIsOpen}>
-      {/* CARD PREVIEW */}
+      {/* CARD PREVIEW - Shows ALL data */}
       <div
-        className="min-w-[320px] w-[320px] bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden hover:shadow-md transition-all cursor-pointer flex flex-col snap-start"
+        className="min-w-[380px] w-[380px] bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden hover:shadow-md transition-all cursor-pointer flex flex-col snap-start"
         onClick={() => setIsOpen(true)}
       >
         {/* Header */}
@@ -672,22 +709,38 @@ function FichaDisplay({ item, config, typeInfo }: { item: any, config: Partial<C
             {format(new Date(item.date || item.createdAt), "dd MMM yyyy", { locale: es })}
           </span>
           <Badge variant="outline" className="bg-white/50 border-transparent text-xs">
-            Session #{item.sessionNumber || 1}
+            Sesión #{item.sessionNumber || 1}
           </Badge>
         </div>
 
-        {/* Body Preview */}
-        <div className="p-4 space-y-3 flex-1">
-          {/* Show first 3 relevant non-empty text fields */}
-          {sections.slice(0, 2).map(section => {
-            const firstField = config.fields?.find(f => f.section === section.id && f.isActive && item[f.key])
-            if (!firstField) return null
+        {/* Body - Show ALL sections and ALL fields */}
+        <div className="p-4 space-y-4 flex-1 max-h-[400px] overflow-y-auto">
+          {sections.map(section => {
+            const sectionFields = allFields.filter(f => f.section === section.id)
+            const fieldsWithData = sectionFields.filter(f => item[f.key] !== undefined && item[f.key] !== null && item[f.key] !== '')
+
+            if (fieldsWithData.length === 0) return null
+
             return (
-              <div key={section.id}>
-                <p className="text-xs font-medium text-slate-500 uppercase">{section.title}</p>
-                <p className="text-sm text-slate-800 line-clamp-2 leading-relaxed">
-                  {typeof item[firstField.key] === 'object' ? 'Ver detalle...' : item[firstField.key]}
-                </p>
+              <div key={section.id} className="space-y-2">
+                <p className="text-xs font-bold text-slate-500 uppercase tracking-wider border-b pb-1">{section.title}</p>
+                <div className="space-y-1.5">
+                  {fieldsWithData.map(field => {
+                    const val = item[field.key]
+                    let displayVal = val
+                    if (val && typeof val === 'object') {
+                      displayVal = val.name ? `${val.name} ${val.relationship ? `(${val.relationship})` : ''}` : JSON.stringify(val)
+                    }
+                    return (
+                      <div key={field.id} className="flex flex-col">
+                        <span className="text-[10px] font-medium text-slate-400 uppercase">{field.label}</span>
+                        <span className="text-sm text-slate-800">
+                          {field.type === 'toggle' ? (val ? 'Sí' : 'No') : displayVal?.toString() || '-'}
+                        </span>
+                      </div>
+                    )
+                  })}
+                </div>
               </div>
             )
           })}
@@ -796,6 +849,49 @@ function FichaDisplay({ item, config, typeInfo }: { item: any, config: Partial<C
         </div>
       </DialogContent>
     </Dialog>
+  )
+}
+
+
+
+function ScrollableRow({ children, className }: { children: React.ReactNode, className?: string }) {
+  const scrollRef = useRef<HTMLDivElement>(null)
+
+  const scroll = (direction: 'left' | 'right') => {
+    if (scrollRef.current) {
+      const scrollAmount = 400
+      scrollRef.current.scrollBy({ left: direction === 'left' ? -scrollAmount : scrollAmount, behavior: 'smooth' })
+    }
+  }
+
+  return (
+    <div className="space-y-3">
+      {/* TOP NAVIGATION BAR - Using native buttons with text arrows */}
+      <div className="flex items-center justify-between bg-slate-100 rounded-lg px-4 py-2">
+        <span className="text-sm text-slate-600 font-medium">Navegar fichas:</span>
+        <div className="flex items-center gap-3">
+          <button
+            type="button"
+            onClick={() => scroll('left')}
+            style={{ backgroundColor: '#3b82f6', color: 'white', width: '44px', height: '44px', borderRadius: '50%', fontSize: '20px', border: 'none', cursor: 'pointer' }}
+          >
+            ◀
+          </button>
+          <button
+            type="button"
+            onClick={() => scroll('right')}
+            style={{ backgroundColor: '#3b82f6', color: 'white', width: '44px', height: '44px', borderRadius: '50%', fontSize: '20px', border: 'none', cursor: 'pointer' }}
+          >
+            ▶
+          </button>
+        </div>
+      </div>
+
+      {/* SCROLLABLE CARDS */}
+      <div ref={scrollRef} className={className}>
+        {children}
+      </div>
+    </div>
   )
 }
 
