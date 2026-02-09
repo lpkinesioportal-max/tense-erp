@@ -874,9 +874,28 @@ export interface ProgressPoint {
   }
 }
 
+export interface ClinicalEntry {
+  id: string
+  clientId: string
+  professionalId?: string
+  serviceCategory: string
+  formType: ClinicalFormType
+  sessionNumber?: number
+  attentionDate: Date | string
+  visibleToPatient: boolean
+  content: any
+  templateSnapshot: any
+  bodyMap: any
+  adherence: any
+  points?: number
+  createdAt: Date
+  updatedAt: Date
+}
+
 export interface MedicalRecord {
   id: string
   clientId: string
+  clinicalEntries?: ClinicalEntry[]
   personalData: {
     bloodType: string
     allergies: string[]

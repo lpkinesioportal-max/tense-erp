@@ -75,10 +75,20 @@ export default function PatientHistoryPage() {
     clients,
     medicalRecords,
     addMedicalRecord,
-    updateMedicalRecord,
-    clinicalFormConfigs, // The dynamic configs from context
-    professionals
+    updateMedicalRecord, // Keep for PersonalDataView if needed
+    clinicalFormConfigs,
+    professionals,
+    clinicalEntries,
+    loadClinicalEntries,
+    saveClinicalEntry,
   } = useData()
+
+  // Load entries on mount
+  useEffect(() => {
+    if (clientId) {
+      loadClinicalEntries(clientId as string)
+    }
+  }, [clientId, loadClinicalEntries])
 
   // State
   const [activeCategory, setActiveCategory] = useState<string>("Kinesiología")
@@ -109,27 +119,18 @@ export default function PatientHistoryPage() {
   const activeCategoryConfig = SERVICE_CATEGORIES.find(c => c.id === activeCategory)
 
   const relevantHistoryItems = useMemo(() => {
-    if (!record || !activeCategoryConfig) return []
+    if (!activeCategoryConfig) return []
 
-    let items: any[] = []
+    // Filter and map clinicalEntries
+    const entries = clinicalEntries.filter(e => e.clientId === clientId && activeCategoryConfig.types.includes(e.formType))
 
-    // Map record arrays to a generic item structure with '_type'
-    if (record.kinesiologyEvaluations) items = items.concat(record.kinesiologyEvaluations.map(i => ({ ...i, _type: 'kinesiology_evaluation' })))
-    if (record.kinesiologyTreatments) items = items.concat(record.kinesiologyTreatments.map(i => ({ ...i, _type: 'kinesiology_treatment' })))
-    if (record.kineHomePrograms) items = items.concat(record.kineHomePrograms.map(i => ({ ...i, _type: 'kine_home' })))
-    if (record.trainingEvaluations) items = items.concat(record.trainingEvaluations.map(i => ({ ...i, _type: 'training_evaluation' })))
-    if (record.trainingRoutines) items = items.concat(record.trainingRoutines.map(i => ({ ...i, _type: 'training_routine' })))
-    if (record.anthropometryEvaluations) items = items.concat(record.anthropometryEvaluations.map(i => ({ ...i, _type: 'nutrition_anthropometry' })))
-    if (record.recipes) items = items.concat(record.recipes.map(i => ({ ...i, _type: 'nutrition_recipe' })))
-    if (record.massageEvaluations) items = items.concat(record.massageEvaluations.map(i => ({ ...i, _type: 'massage_evaluation' })))
-    if (record.yogaEvaluations) items = items.concat(record.yogaEvaluations.map(i => ({ ...i, _type: 'yoga_evaluation' })))
-
-    // Filter by types belonging to active category
-    return items
-      .filter(item => activeCategoryConfig.types.includes(item._type))
-      .sort((a, b) => new Date(a.date || a.createdAt).getTime() - new Date(b.date || b.createdAt).getTime())
-
-  }, [record, activeCategoryConfig])
+    return entries.map(e => ({
+      ...e,
+      ...e.content, // Flatten content for display compatibility
+      _type: e.formType, // For compatibility
+      date: e.attentionDate // Map attentionDate to date
+    })).sort((a, b) => new Date(b.date || b.createdAt).getTime() - new Date(a.date || a.createdAt).getTime())
+  }, [clinicalEntries, clientId, activeCategoryConfig])
 
   // Group items by type for the horizontal swimlanes
   const itemsByType = useMemo(() => {
@@ -362,48 +363,25 @@ export default function PatientHistoryPage() {
               onCancel={() => setSelectedFormType(null)}
               onSubmit={async (values) => {
                 // Prepare the object to save
-                const newRecord = {
-                  ...values,
+                // Prepare the object to save
+                const entryData: any = {
                   id: crypto.randomUUID(),
                   clientId: client.id,
-                  professionalId: currentUser?.professionalId || "unknown", // Should select professional
-                  date: new Date(),
+                  professionalId: currentUser?.professionalId || null,
+                  serviceCategory: activeCategory,
+                  formType: selectedFormType,
+                  attentionDate: new Date(),
+                  sessionNumber: Number(values.sessionNumber) || relevantHistoryItems.length + 1,
+                  visibleToPatient: true,
+                  content: values, // Store all form values in content
+                  templateSnapshot: getEffectiveConfig(selectedFormType), // Snapshot of current config
+                  bodyMap: values.bodyZones || {},
+                  adherence: values.adherence || {},
                   createdAt: new Date(),
-                  visibleToPatient: true
+                  updatedAt: new Date()
                 }
 
-                // Just save for now, specific logic would go here to update 'medicalRecords'
-                // We will map 'type' to the property name in MedicalRecord
-                // ... (logic reused from before) ...
-
-                let updatedRecord: any = record ? { ...record } : { id: crypto.randomUUID(), clientId: client.id, createdAt: new Date() }
-
-                // [Simplified logic for brevity, assuming standard push]
-                if (selectedFormType === 'kinesiology_evaluation') {
-                  updatedRecord.kinesiologyEvaluations = [...(updatedRecord.kinesiologyEvaluations || []), newRecord]
-                } else if (selectedFormType === 'kinesiology_treatment') {
-                  updatedRecord.kinesiologyTreatments = [...(updatedRecord.kinesiologyTreatments || []), newRecord]
-                } else if (selectedFormType === 'kine_home') {
-                  updatedRecord.kineHomePrograms = [...(updatedRecord.kineHomePrograms || []), newRecord]
-                } else if (selectedFormType === 'training_evaluation') {
-                  updatedRecord.trainingEvaluations = [...(updatedRecord.trainingEvaluations || []), newRecord]
-                } else if (selectedFormType === 'training_routine') {
-                  updatedRecord.trainingRoutines = [...(updatedRecord.trainingRoutines || []), newRecord]
-                } else if (selectedFormType === 'nutrition_anthropometry') {
-                  updatedRecord.anthropometryEvaluations = [...(updatedRecord.anthropometryEvaluations || []), newRecord]
-                } else if (selectedFormType === 'nutrition_recipe') {
-                  updatedRecord.recipes = [...(updatedRecord.recipes || []), newRecord]
-                } else if (selectedFormType === 'massage_evaluation') {
-                  updatedRecord.massageEvaluations = [...(updatedRecord.massageEvaluations || []), newRecord]
-                } else if (selectedFormType === 'yoga_evaluation') {
-                  updatedRecord.yogaEvaluations = [...(updatedRecord.yogaEvaluations || []), newRecord]
-                }
-
-                if (!record) {
-                  addMedicalRecord(updatedRecord as any)
-                } else {
-                  updateMedicalRecord(client.id, updatedRecord as any)
-                }
+                await saveClinicalEntry(entryData)
 
                 toast.success("Ficha guardada exitosamente")
                 setIsNewEntryOpen(false)

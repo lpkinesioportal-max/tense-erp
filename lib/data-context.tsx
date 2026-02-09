@@ -41,6 +41,7 @@ import type {
   ProgressPoint,
   CompanyInfo,
   InterProfessionalAdjustment,
+  ClinicalEntry,
 } from "./types"
 import {
   users as mockUsers,
@@ -252,6 +253,12 @@ interface DataContextType {
   addPatientTask: (clientId: string, task: Omit<PatientTask, "id" | "createdAt" | "updatedAt">) => void
   updatePatientTaskStatus: (clientId: string, taskId: string, status: PatientTaskStatus, evidence?: any) => void
 
+  // Clinical Entries
+  clinicalEntries: ClinicalEntry[]
+  loadClinicalEntries: (clientId: string) => Promise<ClinicalEntry[]>
+  saveClinicalEntry: (entry: ClinicalEntry) => Promise<void>
+  uploadClinicalMedia: (file: File) => Promise<string | null>
+
   // Cash Transfers
   cashTransfers: CashTransfer[]
   setCashTransfers: React.Dispatch<React.SetStateAction<CashTransfer[]>>
@@ -267,6 +274,40 @@ interface DataContextType {
 }
 
 const DataContext = createContext<DataContextType | undefined>(undefined)
+
+
+// Helper functions for case conversion
+const toSnakeCase = (obj: any): any => {
+  if (Array.isArray(obj)) {
+    return obj.map(v => toSnakeCase(v));
+  } else if (obj !== null && obj.constructor === Object) {
+    return Object.keys(obj).reduce(
+      (result, key) => {
+        const snakeKey = key.replace(/[A-Z]/g, letter => `_${letter.toLowerCase()}`);
+        result[snakeKey] = toSnakeCase(obj[key]);
+        return result;
+      },
+      {} as any
+    );
+  }
+  return obj;
+}
+
+const toCamelCase = (obj: any): any => {
+  if (Array.isArray(obj)) {
+    return obj.map(v => toCamelCase(v));
+  } else if (obj !== null && obj.constructor === Object) {
+    return Object.keys(obj).reduce(
+      (result, key) => {
+        const camelKey = key.replace(/_([a-z])/g, (g) => g[1].toUpperCase());
+        result[camelKey] = toCamelCase(obj[key]);
+        return result;
+      },
+      {} as any
+    );
+  }
+  return obj;
+}
 
 export function DataProvider({ children }: { children: React.ReactNode }) {
   const [isInitialized, setIsInitialized] = useState(false)
@@ -317,6 +358,8 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       openingHours: "Lunes a Viernes 08:00 - 20:00",
     }
   })
+
+  const [clinicalEntries, setClinicalEntries] = useState<ClinicalEntry[]>([])
 
   const loadFromStorage = <T,>(key: string, defaultValue: T): T => {
     if (typeof window === "undefined") return defaultValue
@@ -739,6 +782,94 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       saveToStorage("tense_erp_inter_professional_adjustments", interProfessionalAdjustments)
     }
   }, [interProfessionalAdjustments, isInitialized])
+
+  // Clinical Entries Implementation
+  const loadClinicalEntries = async (clientId: string): Promise<ClinicalEntry[]> => {
+    if (!isSupabaseConfigured()) return []
+
+    try {
+      const { data, error } = await supabase
+        .from('clinical_entries')
+        .select('*')
+        .eq('client_id', clientId)
+        .order('attention_date', { ascending: false })
+
+      if (error) throw error
+
+      const entries = data.map(row => toCamelCase(row) as ClinicalEntry)
+      setClinicalEntries(prev => {
+        // Merge with existing avoiding duplicates
+        const otherEntries = prev.filter(e => e.clientId !== clientId)
+        return [...otherEntries, ...entries]
+      })
+      return entries
+    } catch (error) {
+      console.error("Error loading clinical entries:", error)
+      return []
+    }
+  }
+
+  const saveClinicalEntry = async (entry: ClinicalEntry) => {
+    if (!isSupabaseConfigured()) return
+
+    try {
+      const snakeCaseEntry = toSnakeCase(entry)
+      // Ensure specific fields are JSON
+      if (snakeCaseEntry.content) snakeCaseEntry.content = entry.content
+      if (snakeCaseEntry.template_snapshot) snakeCaseEntry.template_snapshot = entry.templateSnapshot
+      if (snakeCaseEntry.body_map) snakeCaseEntry.body_map = entry.bodyMap
+      if (snakeCaseEntry.adherence) snakeCaseEntry.adherence = entry.adherence
+
+      console.log("Saving clinical entry:", snakeCaseEntry) // DEBUG
+
+      const { error } = await supabase
+        .from('clinical_entries')
+        .upsert(snakeCaseEntry, { onConflict: 'id' })
+
+      if (error) throw error
+
+      setClinicalEntries(prev => {
+        const index = prev.findIndex(e => e.id === entry.id)
+        if (index >= 0) {
+          const newEntries = [...prev]
+          newEntries[index] = entry
+          return newEntries
+        }
+        return [...prev, entry]
+      })
+    } catch (error) {
+      console.error("Error saving clinical entry:", error)
+      if (error && typeof error === 'object' && 'message' in error) {
+        console.error("Error message:", (error as any).message)
+        console.error("Error details:", (error as any).details)
+        console.error("Error hint:", (error as any).hint)
+      }
+      throw error
+    }
+  }
+
+  const uploadClinicalMedia = async (file: File): Promise<string | null> => {
+    if (!isSupabaseConfigured()) return null
+
+    try {
+      const fileExt = file.name.split('.').pop()
+      const fileName = `${Date.now()}-${Math.random().toString(36).substring(2)}.${fileExt}`
+      const filePath = `${fileName}`
+
+      const { error } = await supabase.storage
+        .from('clinical-media')
+        .upload(filePath, file)
+
+      if (error) throw error
+
+      // For private buckets, we return the path. 
+      // The frontend will generate a signed URL when needed.
+      return filePath
+    } catch (error) {
+      console.error("Error uploading media:", error)
+      throw error
+    }
+  }
 
   // Users
   const addUser = async (userData: Omit<User, "id" | "createdAt">) => {
@@ -2734,6 +2865,10 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     addPatientLog,
     addPatientTask,
     updatePatientTaskStatus,
+    clinicalEntries,
+    loadClinicalEntries,
+    saveClinicalEntry,
+    uploadClinicalMedia,
     cashTransfers,
     setCashTransfers,
     confirmCashTransfer,
