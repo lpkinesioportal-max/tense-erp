@@ -62,7 +62,8 @@ import {
   BookOpen,
   Download,
   Copy,
-  Layers
+  Layers,
+  History as HistoryIcon
 } from "lucide-react"
 import { supabase } from "@/lib/supabase-client"
 import { toast } from "sonner"
@@ -325,6 +326,7 @@ export default function PatientHistoryPage() {
                             item={item}
                             config={config}
                             typeInfo={typeInfo}
+                            allEntries={clinicalEntries}
                             onEdit={handleEdit}
                           />
                         ))}
@@ -1163,7 +1165,7 @@ function RenderFieldInput({ field, value, onChange }: { field: any, value: any, 
 
 
 // 2. FICHA DISPLAY COMPONENT (The Card in the list)
-function FichaDisplay({ item, config, typeInfo, onEdit }: { item: any, config: Partial<ClinicalFormConfig>, typeInfo: any, onEdit: (item: any) => void }) {
+function FichaDisplay({ item, config, typeInfo, allEntries, onEdit }: { item: any, config: Partial<ClinicalFormConfig>, typeInfo: any, allEntries?: any[], onEdit: (item: any) => void }) {
   const [isOpen, setIsOpen] = useState(false)
 
   // Sort sections
@@ -1348,6 +1350,54 @@ function FichaDisplay({ item, config, typeInfo, onEdit }: { item: any, config: P
               </div>
             )
           })()}
+
+          {/* Related Exercise Logs (Sessions) */}
+          {(item.formType === 'training_routine' || item.formType === 'kine_home') && allEntries && (
+            <div className="mt-4 pt-4 border-t border-dashed space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2 text-xs font-bold text-slate-500 uppercase tracking-wider">
+                  <HistoryIcon className="h-3.5 w-3.5 text-blue-500" />
+                  <span>Sesiones Realizadas</span>
+                </div>
+                <Badge variant="secondary" className="bg-blue-50 text-blue-700 border-blue-100 text-[10px]">
+                  {allEntries.filter(e => e.formType === 'exercise_log' && (e.content?.routineId === item.id || e.routineId === item.id)).length}
+                </Badge>
+              </div>
+
+              <div className="space-y-2">
+                {allEntries
+                  .filter(e => e.formType === 'exercise_log' && (e.content?.routineId === item.id || e.routineId === item.id))
+                  .sort((a, b) => new Date(b.attentionDate).getTime() - new Date(a.attentionDate).getTime())
+                  .slice(0, 5) // Show only last 5 in preview
+                  .map((log, lIdx) => (
+                    <div key={log.id || lIdx} className="bg-blue-50/50 rounded-lg p-2.5 border border-blue-100/50 group/log hover:bg-blue-50 transition-colors">
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-[10px] font-black text-blue-700">
+                          {format(new Date(log.attentionDate), "dd/MM/yyyy HH:mm", { locale: es })}
+                        </span>
+                        <span className="text-[9px] font-bold text-slate-400 uppercase">{log.content?.dayName || "Sesión"}</span>
+                      </div>
+                      {log.content?.notes && (
+                        <p className="text-[11px] text-slate-600 line-clamp-2 italic italic-slate-500">"{log.content.notes}"</p>
+                      )}
+                      <div className="mt-1 flex flex-wrap gap-1">
+                        {log.content?.exercises?.filter((ex: any) => ex.completed).map((ex: any, exIdx: number) => (
+                          <Badge key={exIdx} variant="outline" className="text-[8px] py-0 px-1 bg-white text-emerald-600 border-emerald-100 uppercase">
+                            ✓ {ex.title || "Ej."}
+                          </Badge>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                {allEntries.filter(e => e.formType === 'exercise_log' && (e.content?.routineId === item.id || e.routineId === item.id)).length > 5 && (
+                  <p className="text-[10px] text-center text-slate-400 font-medium">Ver ficha completa para más sesiones...</p>
+                )}
+                {allEntries.filter(e => e.formType === 'exercise_log' && (e.content?.routineId === item.id || e.routineId === item.id)).length === 0 && (
+                  <p className="text-[10px] text-center text-slate-400 italic py-2">Sin sesiones registradas aún</p>
+                )}
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Footer */}

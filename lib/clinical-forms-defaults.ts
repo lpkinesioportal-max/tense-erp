@@ -3,7 +3,7 @@ import { Activity, Dumbbell, Apple, Sparkles, Heart, FileText } from "lucide-rea
 
 export const SERVICE_CATEGORIES = [
     { id: "Kinesiología", label: "Kinesiología", icon: Activity, color: "text-blue-600 bg-blue-50", types: ["kinesiology_evaluation", "kinesiology_treatment", "kine_home", "exercise_log"] },
-    { id: "Entrenamiento", label: "Entrenamiento", icon: Dumbbell, color: "text-orange-600 bg-orange-50", types: ["training_evaluation", "training_routine"] },
+    { id: "Entrenamiento", label: "Entrenamiento", icon: Dumbbell, color: "text-orange-600 bg-orange-50", types: ["training_evaluation", "training_routine", "exercise_log"] },
     { id: "Nutrición", label: "Nutrición", icon: Apple, color: "text-green-600 bg-green-50", types: ["nutrition_anthropometry", "nutrition_recipe"] },
     { id: "Masajes", label: "Masajes", icon: Sparkles, color: "text-purple-600 bg-purple-50", types: ["massage_evaluation"] },
     { id: "Yoga", label: "Yoga", icon: Heart, color: "text-pink-600 bg-pink-50", types: ["yoga_evaluation", "yoga_routine"] },
