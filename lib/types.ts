@@ -401,6 +401,8 @@ export type FormFieldType =
   | "toggle"
   | "section"
   | "note"
+  | "exercise_list"
+  | "exercise_days"
 
 export interface FormSectionConfig {
   id: string
@@ -571,6 +573,37 @@ export interface BodyZone {
   intensity?: string
   notes?: string
   visibleToPatient?: boolean
+}
+
+// === Exercise / Routine Types ===
+
+export interface ExerciseItem {
+  id: string
+  title: string
+  description: string
+  setsReps: string
+  videoUrl: string
+  notes: string
+}
+
+export interface RoutineDay {
+  id: string
+  name: string
+  exercises: ExerciseItem[]
+}
+
+export interface ExerciseLog {
+  id: string
+  routineId: string // clinical_entries.id
+  dayId: string
+  date: string // ISO
+  exercises: Array<{
+    exerciseId: string
+    completed: boolean
+    weight: string
+    duration: string
+    notes: string
+  }>
 }
 
 export interface ZoneNote {

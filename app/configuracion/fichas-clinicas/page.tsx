@@ -841,7 +841,10 @@ const getDefaultFormConfig = (formType: ClinicalFormType): Partial<ClinicalFormC
     training_routine: {
       name: "Rutina de Entrenamiento",
       description: "Rutinas personalizadas para el paciente",
-      sections: [{ id: "routine", key: "routine", title: "Rutina", order: 0, isActive: true }],
+      sections: [
+        { id: "routine", key: "routine", title: "Rutina", order: 0, isActive: true },
+        { id: "exercises", key: "exercises", title: "Ejercicios", order: 1, isActive: true },
+      ],
       fields: [
         {
           id: "1",
@@ -903,6 +906,16 @@ const getDefaultFormConfig = (formType: ClinicalFormType): Partial<ClinicalFormC
           order: 5,
           isActive: true,
           visibleToPatient: false,
+        },
+        {
+          id: "7",
+          key: "exerciseList",
+          label: "Días de Entrenamiento",
+          type: "exercise_days",
+          section: "exercises",
+          order: 0,
+          isActive: true,
+          visibleToPatient: true,
         },
       ],
     },
@@ -1736,8 +1749,8 @@ export default function ClinicalFormsConfigPage() {
                                 key={ft.value}
                                 onClick={() => setSelectedFormType(ft.value)}
                                 className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-left transition-all ${isSelected
-                                    ? "bg-primary text-primary-foreground shadow-sm"
-                                    : "hover:bg-accent text-muted-foreground hover:text-foreground"
+                                  ? "bg-primary text-primary-foreground shadow-sm"
+                                  : "hover:bg-accent text-muted-foreground hover:text-foreground"
                                   }`}
                               >
                                 <div

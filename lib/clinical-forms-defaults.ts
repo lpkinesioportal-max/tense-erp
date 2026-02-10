@@ -125,7 +125,9 @@ export const getDefaultFormConfig = (formType: ClinicalFormType): Partial<Clinic
                 fields: [
                     { id: "1", key: "region", label: "Región", type: "text", section: "program", order: 0, isActive: true, visibleToPatient: true },
                     { id: "2", key: "objective", label: "Objetivo", type: "textarea", section: "program", order: 1, isActive: true, visibleToPatient: true },
-                    // Exercises are usually dynamic array, here modeled as text? Or maybe special handling.
+                    { id: "3", key: "frequency", label: "Frecuencia (veces por semana)", type: "text", section: "program", order: 2, isActive: true, visibleToPatient: true },
+                    { id: "4", key: "duration", label: "Duración del programa", type: "text", section: "program", order: 3, isActive: true, visibleToPatient: true },
+                    { id: "5", key: "exerciseList", label: "Lista de Ejercicios", type: "exercise_list", section: "exercises", order: 0, isActive: true, visibleToPatient: true },
                 ]
             }
         case "training_evaluation":
@@ -172,10 +174,14 @@ export const getDefaultFormConfig = (formType: ClinicalFormType): Partial<Clinic
             return {
                 name: "Rutina de Entrenamiento",
                 description: "Asignación de rutina",
-                sections: [{ id: "routine", key: "routine", title: "Rutina", order: 0, isActive: true }],
+                sections: [
+                    { id: "routine", key: "routine", title: "Rutina", order: 0, isActive: true },
+                    { id: "exercises", key: "exercises", title: "Ejercicios", order: 1, isActive: true },
+                ],
                 fields: [
                     { id: "1", key: "name", label: "Nombre de la Rutina", type: "text", section: "routine", order: 0, isActive: true, visibleToPatient: true },
                     { id: "2", key: "objective", label: "Objetivo", type: "textarea", section: "routine", order: 1, isActive: true, visibleToPatient: true },
+                    { id: "3", key: "exerciseList", label: "Días de Entrenamiento", type: "exercise_days", section: "exercises", order: 0, isActive: true, visibleToPatient: true },
                 ]
             }
         case "nutrition_anthropometry":

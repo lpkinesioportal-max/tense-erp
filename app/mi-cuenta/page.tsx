@@ -14,7 +14,7 @@ import {
   MessageCircle, Bell, ChevronRight, Calendar, User,
   Stethoscope, Target, Play, Video, Download, Info, CheckSquare, Heart,
   TrendingUp, ClipboardCheck, Droplets, Moon, History, Utensils, Flower2, Camera,
-  Sparkles, ShieldCheck, Zap, Brain, Clock
+  Sparkles, ShieldCheck, Zap, Brain, Clock, Layers, Clipboard, CheckCircle, Repeat
 } from "lucide-react"
 import { format } from "date-fns"
 import { es } from "date-fns/locale"
@@ -23,13 +23,23 @@ import { ProgressChart } from "@/components/progreso/progress-chart"
 import { PatientLogForm } from "@/components/progreso/patient-log-form"
 import { PatientTaskList } from "@/components/progreso/patient-task-list"
 import { QuickDailyLog } from "@/components/progreso/quick-daily-log"
+import { loadLogs, addLog } from "@/lib/exercise-logs.storage"
+import type { ExerciseLog, RoutineDay, ExerciseItem } from "@/lib/types"
+import { Input } from "@/components/ui/input"
+import { Textarea } from "@/components/ui/textarea"
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 
 export default function MiCuentaPage() {
   const router = useRouter()
   const { client, logout, isClient } = useAuth()
-  const { getMedicalRecord, professionals } = useData()
+  const { getMedicalRecord, professionals, clinicalEntries, loadClinicalEntries } = useData()
   const [activeTab, setActiveTab] = useState("inicio")
   const [record, setRecord] = useState<any>(null)
+  const [routineEntries, setRoutineEntries] = useState<any[]>([])
+  const [exerciseLogs, setExerciseLogs] = useState<ExerciseLog[]>(loadLogs())
+  const [trackingModal, setTrackingModal] = useState<{ routineId: string, dayId: string, dayName: string, exercises: ExerciseItem[] } | null>(null)
+  const [trackingForm, setTrackingForm] = useState<Record<string, { completed: boolean, weight: string, duration: string, notes: string }>>({})
+  const [activeDayIndex, setActiveDayIndex] = useState<Record<string, number>>({})
 
   useEffect(() => {
     if (!isClient || !client) {
@@ -39,8 +49,12 @@ export default function MiCuentaPage() {
       if (existingRecord) {
         setRecord(existingRecord)
       }
+      loadClinicalEntries(client.id).then(entries => {
+        const routines = entries.filter((e: any) => e.formType === 'training_routine')
+        setRoutineEntries(routines)
+      }).catch(() => { /* clinical_entries table may not exist yet */ })
     }
-  }, [isClient, client, router, getMedicalRecord])
+  }, [isClient, client, router, getMedicalRecord, loadClinicalEntries])
 
   const handleLogout = () => {
     logout()
@@ -107,6 +121,61 @@ export default function MiCuentaPage() {
   const visibleNutritionalEvaluations = record?.anthropometryEvaluations?.filter((e: any) => e.visibleToPatient) || []
   const visibleYogaSessions = record?.yogaEvaluations?.filter((s: any) => s.visibleToPatient) || []
   const visibleRecipes = record?.recipes?.filter((r: any) => r.visibleToPatient) || []
+
+  // Build routine data from clinical entries (new exercise_days format)
+  const clinicalRoutines = routineEntries.map((entry: any) => {
+    const content = entry.content || {}
+    const exerciseList = content.exerciseList
+    let days: RoutineDay[]
+    if (!exerciseList || !Array.isArray(exerciseList) || exerciseList.length === 0) {
+      days = []
+    } else if (exerciseList[0] && 'title' in exerciseList[0] && !('exercises' in exerciseList[0])) {
+      days = [{ id: 'day-1', name: 'Dia 1', exercises: exerciseList }]
+    } else {
+      days = exerciseList as RoutineDay[]
+    }
+    return {
+      id: entry.id,
+      name: content.routineName || entry.title || 'Rutina',
+      date: entry.attentionDate || entry.createdAt,
+      objective: content.objective || '',
+      days,
+    }
+  }).filter((r: any) => r.days.length > 0)
+
+  const getLogsForDay = (routineId: string, dayId: string) => {
+    return exerciseLogs.filter(l => l.routineId === routineId && l.dayId === dayId)
+      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+  }
+
+  const openTrackingModal = (routineId: string, day: RoutineDay) => {
+    const defaultForm: Record<string, { completed: boolean, weight: string, duration: string, notes: string }> = {}
+    day.exercises.forEach(ex => {
+      defaultForm[ex.id] = { completed: false, weight: '', duration: '', notes: '' }
+    })
+    setTrackingForm(defaultForm)
+    setTrackingModal({ routineId, dayId: day.id, dayName: day.name, exercises: day.exercises })
+  }
+
+  const submitTracking = () => {
+    if (!trackingModal) return
+    const log: ExerciseLog = {
+      id: Date.now().toString() + Math.random().toString(36).slice(2, 5),
+      routineId: trackingModal.routineId,
+      dayId: trackingModal.dayId,
+      date: new Date().toISOString(),
+      exercises: trackingModal.exercises.map(ex => ({
+        exerciseId: ex.id,
+        completed: trackingForm[ex.id]?.completed || false,
+        weight: trackingForm[ex.id]?.weight || '',
+        duration: trackingForm[ex.id]?.duration || '',
+        notes: trackingForm[ex.id]?.notes || ''
+      }))
+    }
+    addLog(log)
+    setExerciseLogs(loadLogs())
+    setTrackingModal(null)
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-sky-50/30 pb-20 sm:pb-0">
@@ -843,20 +912,155 @@ export default function MiCuentaPage() {
                   </div>
                   Performance Hub
                 </h3>
-                <p className="text-slate-500 font-medium text-[11px] mt-1 ml-9">Tus protocolos de entrenamiento y optimización</p>
+                <p className="text-slate-500 font-medium text-[11px] mt-1 ml-9">Tus protocolos de entrenamiento y optimizacion</p>
               </div>
             </div>
 
-            {visibleRoutines.length === 0 ? (
+            {clinicalRoutines.length === 0 && visibleRoutines.length === 0 ? (
               <div className="bg-white rounded-[3rem] border-2 border-dashed border-slate-200 p-20 text-center">
                 <div className="h-20 w-20 mx-auto rounded-full bg-slate-50 flex items-center justify-center mb-6">
                   <Target className="h-10 w-10 text-slate-200" />
                 </div>
                 <p className="text-slate-600 font-black text-xl">Sin protocolos asignados</p>
-                <p className="text-slate-400 mt-2 max-w-sm mx-auto font-medium">Aquí visualizarás tus rutinas de entrenamiento funcional y correctivo.</p>
+                <p className="text-slate-400 mt-2 max-w-sm mx-auto font-medium">Aqui visualizaras tus rutinas de entrenamiento funcional y correctivo.</p>
               </div>
             ) : (
               <div className="grid gap-10">
+                {/* === NEW: Clinical Entries Routines === */}
+                {clinicalRoutines.map((routine: any) => {
+                  const currentDayIdx = activeDayIndex[routine.id] || 0
+                  const currentDay = routine.days[currentDayIdx]
+                  const dayLogs = currentDay ? getLogsForDay(routine.id, currentDay.id) : []
+
+                  return (
+                    <Card key={routine.id} className="border-none shadow-md rounded-2xl overflow-hidden bg-white/80 backdrop-blur-xl border border-white/50 group">
+                      <CardHeader className="bg-slate-900 p-5 relative overflow-hidden">
+                        <div className="absolute top-0 right-0 p-8 opacity-5 pointer-events-none group-hover:scale-150 transition-transform duration-1000">
+                          <Zap className="h-16 w-16 text-indigo-400" />
+                        </div>
+                        <div className="flex flex-col md:flex-row justify-between items-center gap-3 relative z-10">
+                          <div className="text-center md:text-left">
+                            <CardTitle className="text-lg font-black text-white tracking-tight">{routine.name}</CardTitle>
+                            <CardDescription className="text-indigo-300 font-bold mt-1 uppercase tracking-widest text-[8px]">Iniciado {format(new Date(routine.date), "dd/MM/yyyy")}</CardDescription>
+                          </div>
+                          <div className="flex flex-col items-center md:items-end gap-1.5">
+                            {routine.objective && (
+                              <Badge className="bg-indigo-500 text-white border-none font-black px-3 py-1 rounded-lg shadow-lg shadow-indigo-500/20 uppercase text-[8px] tracking-widest">
+                                {routine.objective}
+                              </Badge>
+                            )}
+                            <span className="text-[8px] font-black text-slate-400 uppercase tracking-wider">{routine.days.length} dia{routine.days.length !== 1 ? 's' : ''}</span>
+                          </div>
+                        </div>
+                      </CardHeader>
+                      <CardContent className="p-0">
+                        {/* DAY TABS */}
+                        <div className="flex items-center gap-1 flex-wrap bg-slate-50 p-2 border-b border-slate-100">
+                          {routine.days.map((day: RoutineDay, dIdx: number) => (
+                            <button
+                              key={day.id}
+                              onClick={() => setActiveDayIndex(prev => ({ ...prev, [routine.id]: dIdx }))}
+                              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${dIdx === currentDayIdx
+                                ? 'bg-white text-indigo-600 shadow-sm border border-indigo-200'
+                                : 'text-slate-400 hover:text-slate-600 hover:bg-white/50'
+                                }`}
+                            >
+                              <Layers className="h-3 w-3 inline mr-1" />
+                              {day.name}
+                              <span className="ml-1 text-[9px] opacity-60">({day.exercises.length})</span>
+                            </button>
+                          ))}
+                        </div>
+
+                        {/* EXERCISES FOR CURRENT DAY */}
+                        {currentDay && (
+                          <div className="divide-y divide-slate-100/50">
+                            {currentDay.exercises.map((ex: ExerciseItem, i: number) => (
+                              <div key={ex.id} className="group/ex p-5 hover:bg-slate-50/80 transition-all duration-500">
+                                <div className="flex items-center gap-4">
+                                  <div className="h-10 w-10 shrink-0 rounded-xl bg-white shadow-lg shadow-slate-200 flex items-center justify-center text-slate-900 text-sm font-black border border-slate-100 group-hover/ex:bg-indigo-600 group-hover/ex:text-white group-hover/ex:scale-110 transition-all duration-500">
+                                    {(i + 1).toString().padStart(2, "0")}
+                                  </div>
+                                  <div className="flex-1 min-w-0">
+                                    <h4 className="text-base font-black text-slate-900 tracking-tight group-hover/ex:text-indigo-600 transition-colors">{ex.title || `Ejercicio ${i + 1}`}</h4>
+                                    {ex.description && <p className="text-xs text-slate-500 mt-0.5 leading-relaxed">{ex.description}</p>}
+                                    {ex.notes && <p className="text-[10px] text-slate-400 mt-1 italic">{ex.notes}</p>}
+                                  </div>
+                                  {ex.setsReps && (
+                                    <div className="flex items-center gap-1.5 bg-indigo-50 text-indigo-700 px-3 py-1.5 rounded-lg text-xs font-bold border border-indigo-100 shrink-0">
+                                      <Repeat className="h-3 w-3" />
+                                      {ex.setsReps}
+                                    </div>
+                                  )}
+                                </div>
+                                {ex.videoUrl && (() => {
+                                  const ytMatch = ex.videoUrl.match(/(?:youtube\.com\/(?:watch\?v=|embed\/|shorts\/)|youtu\.be\/)([a-zA-Z0-9_-]{11})/)
+                                  if (ytMatch) {
+                                    return (
+                                      <div className="mt-3 rounded-xl overflow-hidden shadow-md border border-slate-200 aspect-video">
+                                        <iframe
+                                          src={`https://www.youtube.com/embed/${ytMatch[1]}`}
+                                          title={ex.title || 'Video del ejercicio'}
+                                          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                                          allowFullScreen
+                                          className="w-full h-full"
+                                        />
+                                      </div>
+                                    )
+                                  }
+                                  return (
+                                    <div className="mt-3 rounded-xl overflow-hidden shadow-md border border-slate-200">
+                                      <video
+                                        src={ex.videoUrl}
+                                        controls
+                                        className="w-full max-h-[300px] object-contain bg-black"
+                                        preload="metadata"
+                                      />
+                                    </div>
+                                  )
+                                })()}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+
+                        {/* REGISTER SESSION BUTTON */}
+                        {currentDay && (
+                          <div className="p-4 bg-gradient-to-r from-emerald-50 to-transparent border-t border-emerald-100">
+                            <button
+                              onClick={() => openTrackingModal(routine.id, currentDay)}
+                              className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-600 text-white font-bold text-sm hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-600/20"
+                            >
+                              <Clipboard className="h-4 w-4" />
+                              Registrar Sesion — {currentDay.name}
+                            </button>
+
+                            {/* SESSION HISTORY */}
+                            {dayLogs.length > 0 && (
+                              <div className="mt-3 space-y-1.5">
+                                <p className="text-[10px] font-black text-emerald-700 uppercase tracking-widest flex items-center gap-1">
+                                  <History className="h-3 w-3" /> Mis Sesiones ({dayLogs.length})
+                                </p>
+                                {dayLogs.slice(0, 3).map((log: ExerciseLog) => (
+                                  <div key={log.id} className="flex items-center gap-2 bg-white rounded-lg p-2 border border-emerald-100 text-xs">
+                                    <CheckCircle className="h-3.5 w-3.5 text-emerald-500 shrink-0" />
+                                    <span className="font-semibold text-slate-700">{format(new Date(log.date), "dd/MM/yyyy HH:mm")}</span>
+                                    <span className="text-slate-400">— {log.exercises.filter(e => e.completed).length}/{log.exercises.length} completados</span>
+                                  </div>
+                                ))}
+                                {dayLogs.length > 3 && (
+                                  <p className="text-[10px] text-slate-400 text-center">+{dayLogs.length - 3} sesiones anteriores</p>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </CardContent>
+                    </Card>
+                  )
+                })}
+
+                {/* === OLD: Legacy trainingRoutines === */}
                 {visibleRoutines.map((routine: any, rIdx: number) => (
                   <Card key={routine.id} className="border-none shadow-md rounded-2xl overflow-hidden bg-white/80 backdrop-blur-xl border border-white/50 group">
                     <CardHeader className="bg-slate-900 p-5 relative overflow-hidden">
@@ -919,6 +1123,79 @@ export default function MiCuentaPage() {
                   </Card>
                 ))}
               </div>
+            )}
+
+            {/* TRACKING MODAL */}
+            {trackingModal && (
+              <Dialog open={!!trackingModal} onOpenChange={() => setTrackingModal(null)}>
+                <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
+                  <DialogHeader>
+                    <DialogTitle className="text-lg font-black flex items-center gap-2">
+                      <Clipboard className="h-5 w-5 text-emerald-600" />
+                      Registrar Sesion — {trackingModal.dayName}
+                    </DialogTitle>
+                  </DialogHeader>
+                  <div className="space-y-4 mt-2">
+                    {trackingModal.exercises.map((ex, idx) => (
+                      <div key={ex.id} className="border border-slate-200 rounded-xl p-4 space-y-3">
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => setTrackingForm(prev => ({ ...prev, [ex.id]: { ...prev[ex.id], completed: !prev[ex.id]?.completed } }))}
+                            className={`w-6 h-6 rounded-lg flex items-center justify-center transition-all ${trackingForm[ex.id]?.completed
+                              ? 'bg-emerald-500 text-white shadow-md shadow-emerald-500/20'
+                              : 'bg-slate-100 text-slate-300 hover:bg-slate-200'
+                              }`}
+                          >
+                            <CheckCircle className="h-4 w-4" />
+                          </button>
+                          <div className="flex-1">
+                            <p className="text-sm font-bold text-slate-800">{ex.title || `Ejercicio ${idx + 1}`}</p>
+                            {ex.setsReps && <p className="text-[10px] text-indigo-500 font-semibold">{ex.setsReps}</p>}
+                          </div>
+                        </div>
+                        <div className="grid grid-cols-2 gap-2">
+                          <div>
+                            <label className="text-[10px] font-bold text-slate-400 uppercase mb-0.5 block">Peso (kg)</label>
+                            <Input
+                              value={trackingForm[ex.id]?.weight || ''}
+                              onChange={e => setTrackingForm(prev => ({ ...prev, [ex.id]: { ...prev[ex.id], weight: e.target.value } }))}
+                              placeholder="Ej: 15"
+                              className="h-8 text-sm"
+                              type="number"
+                            />
+                          </div>
+                          <div>
+                            <label className="text-[10px] font-bold text-slate-400 uppercase mb-0.5 block">Duracion</label>
+                            <Input
+                              value={trackingForm[ex.id]?.duration || ''}
+                              onChange={e => setTrackingForm(prev => ({ ...prev, [ex.id]: { ...prev[ex.id], duration: e.target.value } }))}
+                              placeholder="Ej: 10 min"
+                              className="h-8 text-sm"
+                            />
+                          </div>
+                        </div>
+                        <div>
+                          <label className="text-[10px] font-bold text-slate-400 uppercase mb-0.5 block">Notas</label>
+                          <Textarea
+                            value={trackingForm[ex.id]?.notes || ''}
+                            onChange={e => setTrackingForm(prev => ({ ...prev, [ex.id]: { ...prev[ex.id], notes: e.target.value } }))}
+                            placeholder="Observaciones..."
+                            className="min-h-[40px] text-sm resize-none"
+                          />
+                        </div>
+                      </div>
+                    ))}
+                    <Button
+                      onClick={submitTracking}
+                      className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold shadow-lg shadow-emerald-600/20"
+                    >
+                      <CheckCircle className="h-4 w-4 mr-2" />
+                      Guardar Sesion
+                    </Button>
+                  </div>
+                </DialogContent>
+              </Dialog>
             )}
           </TabsContent>
           {/* NUTRICIÓN TAB */}

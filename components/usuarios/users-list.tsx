@@ -26,6 +26,8 @@ import {
   Key,
   Stethoscope,
   Calendar,
+  Eye,
+  EyeOff,
 } from "lucide-react"
 import type { User as UserType } from "@/lib/types"
 
@@ -63,6 +65,7 @@ export function UsersList({ onEdit, onNew, onViewProfile, onAssignAppointment }:
   const [newPassword, setNewPassword] = useState("")
   const [confirmPassword, setConfirmPassword] = useState("")
   const [passwordError, setPasswordError] = useState("")
+  const [visiblePasswords, setVisiblePasswords] = useState<Record<string, boolean>>({})
 
   const filteredUsers = users.filter((user) => {
     const matchesSearch =
@@ -199,6 +202,7 @@ export function UsersList({ onEdit, onNew, onViewProfile, onAssignAppointment }:
                   <TableHead>Email</TableHead>
                   <TableHead>Rol</TableHead>
                   <TableHead>Estado</TableHead>
+                  <TableHead>Contraseña</TableHead>
                   <TableHead>Profesional</TableHead>
                   <TableHead className="text-right">Acciones</TableHead>
                 </TableRow>
@@ -243,6 +247,24 @@ export function UsersList({ onEdit, onNew, onViewProfile, onAssignAppointment }:
                           <Badge variant="outline" className="text-red-600 border-red-600">
                             Inactivo
                           </Badge>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        {user.password ? (
+                          <div className="flex items-center gap-1.5">
+                            <code className="text-xs bg-slate-100 px-2 py-0.5 rounded font-mono">
+                              {visiblePasswords[user.id] ? user.password : '••••••'}
+                            </code>
+                            <button
+                              onClick={() => setVisiblePasswords(prev => ({ ...prev, [user.id]: !prev[user.id] }))}
+                              className="text-slate-400 hover:text-slate-600 transition-colors p-0.5 rounded hover:bg-slate-100"
+                              title={visiblePasswords[user.id] ? 'Ocultar' : 'Mostrar'}
+                            >
+                              {visiblePasswords[user.id] ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+                            </button>
+                          </div>
+                        ) : (
+                          <span className="text-muted-foreground text-xs">Sin clave</span>
                         )}
                       </TableCell>
                       <TableCell>
@@ -307,7 +329,7 @@ export function UsersList({ onEdit, onNew, onViewProfile, onAssignAppointment }:
                 })}
                 {filteredUsers.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
+                    <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
                       No se encontraron usuarios
                     </TableCell>
                   </TableRow>
