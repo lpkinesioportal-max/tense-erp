@@ -1611,13 +1611,13 @@ export default function MiCuentaPage() {
           <TabsContent value="masajes" className="space-y-6 outline-none animate-in fade-in duration-700">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
               <div>
-                <h3 className="text-lg font-black text-slate-900 tracking-tight flex items-center gap-2">
+                <h3 className="text-lg font-black text-rose-600 tracking-tight flex items-center gap-2">
                   <div className="h-7 w-7 rounded-lg bg-rose-500 flex items-center justify-center shadow-md">
                     <Sparkles className="h-3.5 w-3.5 text-white" />
                   </div>
-                  Wellness Therapy
+                  Masajes
                 </h3>
-                <p className="text-slate-500 font-medium text-[11px] mt-1 ml-9">Rituales de recuperación y bienestar miofascial</p>
+                <p className="text-slate-500 font-medium text-[11px] mt-1 ml-9">Masoterapia y Bienestar</p>
               </div>
             </div>
 
@@ -1715,10 +1715,10 @@ export default function MiCuentaPage() {
                             </div>
                           ) : (
                             <div className="space-y-4">
-                              <div className="relative bg-white rounded-2xl border border-slate-100 shadow-sm p-4 overflow-hidden min-h-[400px] flex items-center justify-center group/map">
+                              <div className="relative bg-white rounded-[2rem] border border-slate-200 shadow-sm p-4 overflow-hidden h-[600px] flex items-center justify-center group/map">
                                 <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_50%,rgba(244,63,94,0.03)_0%,transparent_70%)] pointer-events-none" />
-                                <div className="w-[800px] h-[800px] scale-[0.5] flex items-center justify-center origin-center shrink-0 transition-transform duration-700 group-hover/map:scale-[0.52]">
-                                  <BodyMap zones={session.bodyZones} onZonesChange={() => { }} readOnly isPatient />
+                                <div className="w-[800px] h-[800px] scale-[0.7] flex items-center justify-center origin-center shrink-0 transition-transform duration-700 group-hover/map:scale-[0.72]">
+                                  <BodyMap zones={session.bodyZones} onZonesChange={() => { }} readOnly isPatient color="#f43f5e" />
                                 </div>
                               </div>
                               <div className="flex flex-wrap justify-center gap-1.5">
@@ -1728,6 +1728,37 @@ export default function MiCuentaPage() {
                                   </Badge>
                                 ))}
                               </div>
+
+                              {/* Notas por Zona (Detalles internos de bodyZones para Masajes) */}
+                              {session.bodyZones?.some((z: any) => z.notes || z.treatment) && (
+                                <div className="mt-6 space-y-3 border-t border-slate-100 pt-5">
+                                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1 text-center">Detalles de Evolución</p>
+                                  <div className="grid grid-cols-1 gap-3">
+                                    {session.bodyZones.filter((z: any) => z.notes || z.treatment).map((zone: any, zIdx: number) => (
+                                      <div
+                                        key={zIdx}
+                                        className="p-3.5 rounded-2xl border border-rose-100 bg-rose-50/20 shadow-sm transition-all duration-300"
+                                      >
+                                        <div className="flex items-center gap-2 mb-2">
+                                          <div className="w-2.5 h-2.5 rounded-full bg-rose-500 shadow-sm" />
+                                          <span className="text-[11px] font-black text-slate-800 uppercase tracking-tight">{translateZone(zone.name || zone.zone)}</span>
+                                          {zone.intensity && (
+                                            <Badge variant="outline" className="ml-auto text-[9px] font-bold bg-white/80 border-rose-100 text-rose-600 px-2 py-0 pointer-events-none">
+                                              Int: {zone.intensity}
+                                            </Badge>
+                                          )}
+                                        </div>
+                                        {zone.treatment && (
+                                          <p className="text-xs font-bold text-slate-800 mb-1 leading-tight">{zone.treatment}</p>
+                                        )}
+                                        {zone.notes && (
+                                          <p className="text-xs italic text-slate-500 leading-relaxed font-medium">"{zone.notes}"</p>
+                                        )}
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
                             </div>
                           )}
                         </div>
