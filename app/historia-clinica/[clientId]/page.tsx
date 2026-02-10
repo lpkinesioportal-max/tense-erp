@@ -1588,6 +1588,73 @@ function FichaDisplay({ item, config, typeInfo, allEntries, onEdit }: { item: an
               </div>
             </div>
           )}
+          {/* Related Exercise Logs (Sessions) */}
+          {(item.formType === 'training_routine' || item.formType === 'kine_home') && allEntries && (
+            <div className="space-y-4">
+              <h4 className="text-sm font-bold text-slate-900 border-b pb-1 flex items-center gap-2">
+                <HistoryIcon className="h-4 w-4 text-blue-500" />
+                Sesiones Realizadas por el Paciente
+              </h4>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {allEntries
+                  .filter(e => e.formType === 'exercise_log' && (e.content?.routineId === item.id || e.routineId === item.id))
+                  .sort((a, b) => new Date(b.attentionDate).getTime() - new Date(a.attentionDate).getTime())
+                  .map((log, lIdx) => (
+                    <div key={log.id || lIdx} className="bg-blue-50/50 rounded-xl p-4 border border-blue-100 group/log hover:bg-blue-50 transition-all shadow-sm">
+                      <div className="flex items-center justify-between mb-3">
+                        <div className="flex flex-col">
+                          <span className="text-sm font-black text-blue-700">
+                            {format(new Date(log.attentionDate), "PPPP", { locale: es })}
+                          </span>
+                          <span className="text-xs text-blue-500 font-medium">
+                            {format(new Date(log.attentionDate), "HH:mm'hs'", { locale: es })}
+                          </span>
+                        </div>
+                        <Badge variant="outline" className="bg-white text-blue-700 border-blue-200 shadow-sm">
+                          {log.content?.dayName || "Sesión"}
+                        </Badge>
+                      </div>
+
+                      {log.content?.notes && (
+                        <div className="bg-white/80 rounded-lg p-3 border border-blue-50 mb-3 shadow-inner">
+                          <p className="text-xs text-slate-600 italic">" {log.content.notes} "</p>
+                        </div>
+                      )}
+
+                      <div className="space-y-2">
+                        {log.content?.exercises?.map((ex: any, exIdx: number) => (
+                          <div key={exIdx} className="flex items-center gap-3 bg-white/50 p-2 rounded-lg border border-slate-50">
+                            <div className={cn(
+                              "w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold shadow-sm",
+                              ex.completed ? "bg-emerald-100 text-emerald-700" : "bg-slate-100 text-slate-400"
+                            )}>
+                              {ex.completed ? "✓" : exIdx + 1}
+                            </div>
+                            <div className="flex flex-col flex-1">
+                              <span className={cn("text-xs font-semibold", ex.completed ? "text-slate-700" : "text-slate-400")}>
+                                {ex.title || `Ejercicio ${exIdx + 1}`}
+                              </span>
+                              {(ex.weight || ex.duration) && (
+                                <div className="flex gap-2 mt-0.5">
+                                  {ex.weight && <span className="text-[10px] text-blue-600 font-bold bg-blue-50 px-1.5 rounded">📦 {ex.weight}</span>}
+                                  {ex.duration && <span className="text-[10px] text-amber-600 font-bold bg-amber-50 px-1.5 rounded">⏱️ {ex.duration}</span>}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                {allEntries.filter(e => e.formType === 'exercise_log' && (e.content?.routineId === item.id || e.routineId === item.id)).length === 0 && (
+                  <div className="md:col-span-2 text-center py-8 bg-slate-50 rounded-xl border border-dashed border-slate-200 text-slate-400 italic">
+                    <HistoryIcon className="h-8 w-8 mx-auto mb-2 opacity-10" />
+                    Sin sesiones registradas aún para esta rutina.
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
         </div>
       </DialogContent>
     </Dialog>
