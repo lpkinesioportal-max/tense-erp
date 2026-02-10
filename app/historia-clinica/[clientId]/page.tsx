@@ -104,6 +104,7 @@ export default function PatientHistoryPage() {
 
   // State
   const [activeCategory, setActiveCategory] = useState<string>("Kinesiología")
+  const [editingEntry, setEditingEntry] = useState<any>(null) // New state for editing
   const [isNewEntryOpen, setIsNewEntryOpen] = useState(false)
   const [selectedFormType, setSelectedFormType] = useState<ClinicalFormType | null>(null)
 
@@ -164,6 +165,15 @@ export default function PatientHistoryPage() {
         <Button onClick={() => router.back()}>Volver</Button>
       </div>
     )
+  }
+
+  const handleEdit = (item: any) => {
+    setEditingEntry(item)
+    // Map formType correctly. If item has formType property use it, otherwise infer from item._type
+    // item._type is set during mapping in useMemo above
+    const type = item.formType || item._type
+    setSelectedFormType(type)
+    setIsNewEntryOpen(true)
   }
 
   return (
@@ -315,6 +325,7 @@ export default function PatientHistoryPage() {
                             item={item}
                             config={config}
                             typeInfo={typeInfo}
+                            onEdit={handleEdit}
                           />
                         ))}
                       </div>
@@ -335,12 +346,12 @@ export default function PatientHistoryPage() {
         <DialogContent className="max-w-7xl max-h-[95vh] flex flex-col p-0 gap-0">
           <DialogHeader className="px-4 py-2 border-b shrink-0">
             <DialogTitle className="text-base">
-              {selectedFormType
+              {editingEntry ? "Editar Ficha" : (selectedFormType
                 ? FORM_TYPES_INFO.find(t => t.value === selectedFormType)?.label
-                : `Nueva Ficha - ${activeCategory}`}
+                : `Nueva Ficha - ${activeCategory}`)}
             </DialogTitle>
             <DialogDescription className="text-xs">
-              {selectedFormType ? "Complete los datos de la ficha." : "Seleccione el tipo de ficha a crear."}
+              {editingEntry ? "Modifique los datos de la ficha." : (selectedFormType ? "Complete los datos de la ficha." : "Seleccione el tipo de ficha a crear.")}
             </DialogDescription>
           </DialogHeader>
 
@@ -371,29 +382,34 @@ export default function PatientHistoryPage() {
           ) : (
             // DYNAMIC FORM
             <DynamicEntryForm
-              key={selectedFormType} // CRITICAL FIX: Forces component remount/reset on type change
+              key={editingEntry ? `edit-${editingEntry.id}` : selectedFormType} // Force remount on switch defaults/edit
               type={selectedFormType}
               config={getEffectiveConfig(selectedFormType)}
-              initialSessionNumber={(relevantHistoryItems.filter(i => i._type === selectedFormType).length) + 1}
-              initialProfessionalName={professionals.find(p => p.id === user?.professionalId)?.name || user?.name || "Profesional"}
-              onCancel={() => setSelectedFormType(null)}
+              initialSessionNumber={editingEntry ? editingEntry.sessionNumber : (relevantHistoryItems.filter(i => i._type === selectedFormType).length) + 1}
+              initialProfessionalName={editingEntry ? (editingEntry.professionalName || editingEntry.professional?.name) : (professionals.find(p => p.id === user?.professionalId)?.name || user?.name || "Profesional")}
+              initialValues={editingEntry ? (editingEntry.content || editingEntry) : undefined}
+              onCancel={() => {
+                setSelectedFormType(null)
+                setEditingEntry(null)
+                setIsNewEntryOpen(false)
+              }}
               onSubmit={async (values) => {
                 // Prepare the object to save
                 // Prepare the object to save
                 const entryData: any = {
-                  id: crypto.randomUUID(),
+                  id: editingEntry ? editingEntry.id : crypto.randomUUID(),
                   clientId: client.id,
-                  professionalId: currentUser?.professionalId || null,
+                  professionalId: currentUser?.professionalId || (editingEntry ? editingEntry.professionalId : null),
                   serviceCategory: activeCategory,
                   formType: selectedFormType,
-                  attentionDate: new Date(),
-                  sessionNumber: Number(values.sessionNumber) || relevantHistoryItems.length + 1,
-                  visibleToPatient: true,
+                  attentionDate: editingEntry ? new Date(editingEntry.attentionDate) : new Date(),
+                  sessionNumber: Number(values.sessionNumber) || (editingEntry ? editingEntry.sessionNumber : relevantHistoryItems.length + 1),
+                  visibleToPatient: true, // Always true at record level? Or form value overrides? usually record level default
                   content: values, // Store all form values in content
-                  templateSnapshot: getEffectiveConfig(selectedFormType), // Snapshot of current config
+                  templateSnapshot: editingEntry ? editingEntry.templateSnapshot : getEffectiveConfig(selectedFormType), // Keep original template if editing? Or update? Let's keep original unless we have versioning. Actually for now update it to current config is safer if fields changed.
                   bodyMap: values.bodyZones || {},
                   adherence: values.adherence || {},
-                  createdAt: new Date(),
+                  createdAt: editingEntry ? editingEntry.createdAt : new Date(),
                   updatedAt: new Date()
                 }
 
@@ -421,18 +437,21 @@ function DynamicEntryForm({
   onCancel,
   onSubmit,
   initialSessionNumber,
-  initialProfessionalName
+  initialProfessionalName,
+  initialValues
 }: {
   type: ClinicalFormType,
   config: Partial<ClinicalFormConfig>,
   onCancel: () => void,
   onSubmit: (values: any) => void,
   initialSessionNumber: number,
-  initialProfessionalName: string
+  initialProfessionalName: string,
+  initialValues?: Record<string, any> // New prop
 }) {
   const [values, setValues] = useState<Record<string, any>>({
     sessionNumber: initialSessionNumber,
     professionalName: initialProfessionalName,
+    ...initialValues // Merge initial values
   })
 
   // Debug Log on Mount
@@ -1144,7 +1163,7 @@ function RenderFieldInput({ field, value, onChange }: { field: any, value: any, 
 
 
 // 2. FICHA DISPLAY COMPONENT (The Card in the list)
-function FichaDisplay({ item, config, typeInfo }: { item: any, config: Partial<ClinicalFormConfig>, typeInfo: any }) {
+function FichaDisplay({ item, config, typeInfo, onEdit }: { item: any, config: Partial<ClinicalFormConfig>, typeInfo: any, onEdit: (item: any) => void }) {
   const [isOpen, setIsOpen] = useState(false)
 
   // Sort sections
@@ -1160,19 +1179,45 @@ function FichaDisplay({ item, config, typeInfo }: { item: any, config: Partial<C
       >
         {/* Header */}
         <div className={cn("px-4 py-3 border-b flex items-center justify-between", typeInfo.color.replace('bg-', 'bg-').replace('600', '50'))}>
-          <span className="font-semibold text-slate-700 text-sm">
-            {format(new Date(item.date || item.createdAt), "dd MMM yyyy", { locale: es })}
-          </span>
-          <Badge variant="outline" className="bg-white/50 border-transparent text-xs">
-            Sesión #{item.sessionNumber || 1}
-          </Badge>
+          <div className="flex flex-col">
+            <span className="font-semibold text-slate-700 text-sm">
+              {format(new Date(item.date || item.createdAt), "dd MMM yyyy", { locale: es })}
+            </span>
+            {item.month && (
+              <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">
+                {item.month}
+              </span>
+            )}
+          </div>
+          <div className="flex items-center gap-1.5">
+            <Button variant="ghost" size="icon" className="h-6 w-6 text-slate-400 hover:text-indigo-600 hover:bg-slate-100/50" onClick={(e) => {
+              e.stopPropagation()
+              onEdit(item)
+            }}>
+              <Settings className="h-3.5 w-3.5" />
+            </Button>
+            {item.formType === 'training_routine' && (
+              <Badge variant={item.isVisible !== false ? "outline" : "destructive"} className={cn("text-[10px] h-5", item.isVisible !== false ? "bg-green-50 text-green-700 border-green-200" : "bg-red-50 text-red-700 border-red-200")}>
+                {item.isVisible !== false ? "Visible" : "Oculto"}
+              </Badge>
+            )}
+            <Badge variant="outline" className="bg-white/50 border-transparent text-xs">
+              Sesión #{item.sessionNumber || 1}
+            </Badge>
+          </div>
         </div>
 
         {/* Body - Show ALL sections and ALL fields */}
         <div className="p-4 space-y-4 flex-1 max-h-[400px] overflow-y-auto">
           {sections.map(section => {
             const sectionFields = allFields.filter(f => f.section === section.id)
-            const fieldsWithData = sectionFields.filter(f => item[f.key] !== undefined && item[f.key] !== null && item[f.key] !== '')
+            const fieldsWithData = sectionFields.filter(f =>
+              f.key !== 'month' &&
+              f.key !== 'isVisible' &&
+              item[f.key] !== undefined &&
+              item[f.key] !== null &&
+              item[f.key] !== ''
+            )
 
             if (fieldsWithData.length === 0) return null
 

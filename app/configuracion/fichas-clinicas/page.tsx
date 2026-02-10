@@ -847,6 +847,16 @@ const getDefaultFormConfig = (formType: ClinicalFormType): Partial<ClinicalFormC
       ],
       fields: [
         {
+          id: "0",
+          key: "month",
+          label: "Mes / Etapa",
+          type: "text",
+          section: "routine",
+          order: -1,
+          isActive: true,
+          visibleToPatient: true,
+        },
+        {
           id: "1",
           key: "name",
           label: "Nombre de Rutina",
@@ -916,6 +926,16 @@ const getDefaultFormConfig = (formType: ClinicalFormType): Partial<ClinicalFormC
           order: 0,
           isActive: true,
           visibleToPatient: true,
+        },
+        {
+          id: "99",
+          key: "isVisible",
+          label: "Visible para el Paciente",
+          type: "toggle",
+          section: "routine",
+          order: 99,
+          isActive: true,
+          visibleToPatient: false,
         },
       ],
     },

@@ -796,7 +796,11 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
 
       if (error) throw error
 
-      const entries = data.map(row => toCamelCase(row) as ClinicalEntry)
+      const entries = data.map(row => {
+        const entry = toCamelCase(row) as ClinicalEntry
+        // Flatten content into entry for easier access in UI
+        return { ...(entry.content || {}), ...entry }
+      })
       setClinicalEntries(prev => {
         // Merge with existing avoiding duplicates
         const otherEntries = prev.filter(e => e.clientId !== clientId)

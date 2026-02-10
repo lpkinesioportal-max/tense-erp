@@ -179,9 +179,11 @@ export const getDefaultFormConfig = (formType: ClinicalFormType): Partial<Clinic
                     { id: "exercises", key: "exercises", title: "Ejercicios", order: 1, isActive: true },
                 ],
                 fields: [
+                    { id: "0", key: "month", label: "Mes / Etapa", type: "text", section: "routine", order: -1, isActive: true, visibleToPatient: true },
                     { id: "1", key: "name", label: "Nombre de la Rutina", type: "text", section: "routine", order: 0, isActive: true, visibleToPatient: true },
                     { id: "2", key: "objective", label: "Objetivo", type: "textarea", section: "routine", order: 1, isActive: true, visibleToPatient: true },
                     { id: "3", key: "exerciseList", label: "Días de Entrenamiento", type: "exercise_days", section: "exercises", order: 0, isActive: true, visibleToPatient: true },
+                    { id: "99", key: "isVisible", label: "Visible para el Paciente", type: "toggle", section: "routine", order: 99, isActive: true, visibleToPatient: false },
                 ]
             }
         case "nutrition_anthropometry":
