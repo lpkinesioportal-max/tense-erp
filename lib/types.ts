@@ -442,6 +442,7 @@ export type ClinicalFormType =
   | "yoga_routine"
   | "evolution_note"
   | "personal"
+  | "exercise_log"
 
 export interface ClinicalFormConfig {
   id: string
@@ -596,7 +597,9 @@ export interface ExerciseLog {
   id: string
   routineId: string // clinical_entries.id
   dayId: string
+  dayName?: string
   date: string // ISO
+  notes?: string
   exercises: Array<{
     exerciseId: string
     completed: boolean

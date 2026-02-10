@@ -64,6 +64,8 @@ const FORM_TYPES: { value: ClinicalFormType; label: string; icon: any; color: st
   { value: "kinesiology_evaluation", label: "Evaluación Kinésica", icon: Activity, color: "bg-blue-500", category: "kinesiologia" },
   { value: "kinesiology_treatment", label: "Tratamiento Kinésico", icon: Activity, color: "bg-blue-400", category: "kinesiologia" },
   { value: "kine_home", label: "Kine en Casa", icon: Activity, color: "bg-blue-300", category: "kinesiologia" },
+  { value: "exercise_log", label: "Registro de Avance", icon: Activity, color: "bg-blue-300", category: "kinesiologia" },
+  { value: "exercise_log", label: "Registro de Avance", icon: Activity, color: "bg-blue-300", category: "kinesiologia" },
   { value: "training_evaluation", label: "Evaluación Entrenamiento", icon: Dumbbell, color: "bg-orange-500", category: "entrenamiento" },
   { value: "training_routine", label: "Rutina Entrenamiento", icon: Dumbbell, color: "bg-orange-400", category: "entrenamiento" },
   { value: "nutrition_anthropometry", label: "Antropometría", icon: Apple, color: "bg-green-500", category: "nutricion" },
@@ -1470,6 +1472,19 @@ const getDefaultFormConfig = (formType: ClinicalFormType): Partial<ClinicalFormC
           visibleToPatient: false,
         },
       ],
+    },
+    exercise_log: {
+      name: "Registro de Avance",
+      description: "Registro de ejercicios realizados por el paciente",
+      sections: [
+        { id: "summary", key: "summary", title: "Resumen", order: 0, isActive: true },
+        { id: "details", key: "details", title: "Detalle", order: 1, isActive: true },
+      ],
+      fields: [
+        { id: "1", key: "dayName", label: "Día de Rutina", type: "text", section: "summary", order: 0, isActive: true, visibleToPatient: true },
+        { id: "2", key: "notes", label: "Notas de Sesión", type: "textarea", section: "details", order: 2, isActive: true, visibleToPatient: true },
+        { id: "3", key: "exercises", label: "Ejercicios Realizados", type: "exercise_list", section: "details", order: 1, isActive: true, visibleToPatient: true },
+      ]
     },
   }
   return configs[formType] || { name: "", sections: [], fields: [] }

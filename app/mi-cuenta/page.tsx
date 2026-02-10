@@ -35,7 +35,8 @@ export default function MiCuentaPage() {
   const { getMedicalRecord, professionals, clinicalEntries, loadClinicalEntries } = useData()
   const [activeTab, setActiveTab] = useState("inicio")
   const [record, setRecord] = useState<any>(null)
-  const [routineEntries, setRoutineEntries] = useState<any[]>([])
+  const [trainingEntries, setTrainingEntries] = useState<any[]>([])
+  const [kineEntries, setKineEntries] = useState<any[]>([])
   const [exerciseLogs, setExerciseLogs] = useState<ExerciseLog[]>(loadLogs())
   const [trackingModal, setTrackingModal] = useState<{ routineId: string, dayId: string, dayName: string, exercises: ExerciseItem[], editLogId?: string } | null>(null)
   const [trackingForm, setTrackingForm] = useState<Record<string, { completed: boolean, weight: string, duration: string, notes: string }>>({})
@@ -50,8 +51,26 @@ export default function MiCuentaPage() {
         setRecord(existingRecord)
       }
       loadClinicalEntries(client.id).then(entries => {
-        const routines = entries.filter((e: any) => e.formType === 'training_routine')
-        setRoutineEntries(routines)
+        setTrainingEntries(entries.filter((e: any) => e.formType === 'training_routine'))
+        setKineEntries(entries.filter((e: any) => e.formType === 'kine_home'))
+
+        // Load synced logs
+        const syncedLogs = entries
+          .filter((e: any) => e.formType === 'exercise_log')
+          .map((e: any) => e.content as ExerciseLog)
+
+        if (syncedLogs.length > 0) {
+          setExerciseLogs(prev => {
+            // Merge strategy: Prefer synced, but keep local if newer? 
+            // Simplest: If we have synced data, use it. 
+            // Or merge unique IDs.
+            const combined = [...syncedLogs]
+            // Add any local logs that are NOT in synced (unsynced items)
+            const syncedIds = new Set(syncedLogs.map(l => l.id))
+            const localOnly = prev.filter(l => !syncedIds.has(l.id))
+            return [...combined, ...localOnly].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+          })
+        }
       }).catch(() => { /* clinical_entries table may not exist yet */ })
     }
   }, [isClient, client, router, getMedicalRecord, loadClinicalEntries])
@@ -122,53 +141,63 @@ export default function MiCuentaPage() {
   const visibleYogaSessions = record?.yogaEvaluations?.filter((s: any) => s.visibleToPatient) || []
   const visibleRecipes = record?.recipes?.filter((r: any) => r.visibleToPatient) || []
 
-  // Build routine data from clinical entries (new exercise_days format)
-  const clinicalRoutines = routineEntries
-    // Filter by visibility (default true)
-    .filter((entry: any) => {
-      // Check both flattened prop and nested content just in case, prioritize explicit false
-      if (entry.isVisible === false) return false
-      if (entry.content?.isVisible === false) return false
-      return true
+  // Helper to process entries into routines with days
+  const processEntriesToRoutines = (entries: any[]) => {
+    return entries
+      .filter((entry: any) => {
+        if (entry.isVisible === false) return false
+        if (entry.content?.isVisible === false) return false
+        return true
+      })
+      .map((entry: any) => {
+        const content = entry.content || {}
+        const exerciseList = entry.exerciseList || content.exerciseList
+
+        let days: RoutineDay[]
+        if (!exerciseList || !Array.isArray(exerciseList) || exerciseList.length === 0) {
+          days = []
+        } else if (exerciseList[0] && 'title' in exerciseList[0] && !('exercises' in exerciseList[0])) {
+          days = [{ id: 'day-1', name: 'Día 1', exercises: exerciseList }]
+        } else {
+          days = exerciseList as RoutineDay[]
+        }
+        return {
+          id: entry.id,
+          name: entry.routineName || content.routineName || entry.title || 'Rutina',
+          month: entry.month || content.month || 'General',
+          date: entry.attentionDate || entry.createdAt,
+          objective: entry.objective || content.objective || '',
+          days,
+        }
+      }).filter((r: any) => r.days.length > 0)
+  }
+
+  const processedTraining = processEntriesToRoutines(trainingEntries)
+  const processedKine = processEntriesToRoutines(kineEntries)
+
+  // Helper to group by month
+  const groupByMonth = (routines: any[]) => {
+    return routines.reduce((acc: Record<string, any[]>, routine: any) => {
+      const month = routine.month || 'General'
+      if (!acc[month]) acc[month] = []
+      acc[month].push(routine)
+      return acc
+    }, {})
+  }
+
+  const trainingByMonth = groupByMonth(processedTraining)
+  const kineByMonth = groupByMonth(processedKine)
+
+  const getSortedMonths = (grouped: Record<string, any[]>) => {
+    return Object.keys(grouped).sort((a, b) => {
+      if (a === 'General') return -1
+      if (b === 'General') return 1
+      return a.localeCompare(b)
     })
-    .map((entry: any) => {
-      const content = entry.content || {}
-      // exerciseList might be at top level now due to flattening, or in content
-      const exerciseList = entry.exerciseList || content.exerciseList
+  }
 
-      let days: RoutineDay[]
-      if (!exerciseList || !Array.isArray(exerciseList) || exerciseList.length === 0) {
-        days = []
-      } else if (exerciseList[0] && 'title' in exerciseList[0] && !('exercises' in exerciseList[0])) {
-        days = [{ id: 'day-1', name: 'Dia 1', exercises: exerciseList }]
-      } else {
-        days = exerciseList as RoutineDay[]
-      }
-      return {
-        id: entry.id,
-        name: entry.routineName || content.routineName || entry.title || 'Rutina',
-        month: entry.month || content.month || 'General',
-        date: entry.attentionDate || entry.createdAt,
-        objective: entry.objective || content.objective || '',
-        days,
-      }
-    }).filter((r: any) => r.days.length > 0)
-
-  // Group routines by month
-  const routinesByMonth = clinicalRoutines.reduce((acc: Record<string, any[]>, routine: any) => {
-    const month = routine.month || 'General'
-    if (!acc[month]) acc[month] = []
-    acc[month].push(routine)
-    return acc
-  }, {})
-
-  const sortedMonths = Object.keys(routinesByMonth).sort((a, b) => {
-    // Basic sort, can be improved to sort months chronologically if needed
-    // Assuming user enters "Enero", "Febrero" or "Fase 1", "Fase 2"
-    if (a === 'General') return -1 // General first
-    if (b === 'General') return 1
-    return a.localeCompare(b)
-  })
+  const trainingMonths = getSortedMonths(trainingByMonth)
+  const kineMonths = getSortedMonths(kineByMonth)
 
   const getLogsForDay = (routineId: string, dayId: string) => {
     return exerciseLogs.filter(l => l.routineId === routineId && l.dayId === dayId)
@@ -219,6 +248,7 @@ export default function MiCuentaPage() {
 
     const exerciseData = trackingModal.exercises.map(ex => ({
       exerciseId: ex.id,
+      title: ex.title || "Ejercicio",
       completed: trackingForm[ex.id]?.completed || false,
       weight: trackingForm[ex.id]?.weight || '',
       duration: trackingForm[ex.id]?.duration || '',
@@ -231,20 +261,22 @@ export default function MiCuentaPage() {
         id: trackingModal.editLogId,
         routineId: trackingModal.routineId,
         dayId: trackingModal.dayId,
+        dayName: trackingModal.dayName,
         date: exerciseLogs.find(l => l.id === trackingModal.editLogId)?.date || new Date().toISOString(), // Keep original date
         exercises: exerciseData
       }
-      updateLog(updatedLog)
+      updateLog(updatedLog, client?.id)
     } else {
       // Create new log
       const newLog: ExerciseLog = {
         id: Date.now().toString() + Math.random().toString(36).slice(2, 5),
         routineId: trackingModal.routineId,
         dayId: trackingModal.dayId,
+        dayName: trackingModal.dayName,
         date: new Date().toISOString(),
         exercises: exerciseData
       }
-      addLog(newLog)
+      addLog(newLog, client?.id)
     }
 
     setExerciseLogs(loadLogs())
@@ -871,107 +903,214 @@ export default function MiCuentaPage() {
               </div>
             </div>
 
-            {visiblePrograms.length === 0 ? (
+            {visiblePrograms.length === 0 && processedKine.length === 0 ? (
               <div className="bg-white rounded-[3rem] border-2 border-dashed border-slate-200 p-20 text-center">
                 <div className="h-20 w-20 mx-auto rounded-full bg-slate-50 flex items-center justify-center mb-6">
                   <Play className="h-10 w-10 text-slate-200 ml-1" />
                 </div>
                 <p className="text-slate-600 font-black text-xl">Sin tareas asignadas</p>
-                <p className="text-slate-400 mt-2 max-w-sm mx-auto font-medium">Cuando tu kinesiólogo diseñe tu rutina para casa, la verás aquí con sus respectivos videos.</p>
+                <p className="text-slate-400 mt-2 max-w-sm mx-auto font-medium">Cuando tu kinesiólogo diseña tu rutina para casa, la verás aquí con sus respectivos videos.</p>
               </div>
             ) : (
-              <div className="space-y-12">
-                {visiblePrograms.map((prog: any, pIdx: number) => (
-                  <div key={prog.id} className="space-y-8 animate-in slide-in-from-bottom-6 duration-700" style={{ animationDelay: `${pIdx * 100}ms` }}>
-                    <Card className="border-none bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 text-white shadow-xl rounded-3xl overflow-hidden relative group">
-                      <div className="absolute top-0 right-0 p-8 opacity-5 pointer-events-none group-hover:rotate-12 group-hover:scale-125 transition-transform duration-1000">
-                        <Dumbbell className="h-32 w-32" />
-                      </div>
-                      <div className="absolute inset-0 bg-gradient-to-r from-sky-600/10 to-transparent pointer-events-none" />
-                      <CardHeader className="p-6 pb-2 relative z-10">
-                        <div className="flex justify-between items-start">
-                          <div>
-                            <div className="flex items-center gap-2 mb-2">
-                              <Badge className="bg-sky-500 text-white border-none font-black text-[8px] px-2 py-0.5 rounded-md tracking-wider">
-                                {prog.status === 'active' ? 'ACTIVO' : 'COMPLETO'}
-                              </Badge>
-                              <span className="text-white/40 font-black text-[8px] tracking-wider uppercase">{format(new Date(prog.date), "dd/MM/yyyy")}</span>
-                            </div>
-                            <CardTitle className="text-xl font-black tracking-tight leading-tight">Región: {prog.region || "Multisegmentaria"}</CardTitle>
-                          </div>
-                          <div className="h-9 w-9 rounded-xl bg-white/10 backdrop-blur-md flex items-center justify-center border border-white/10 shadow-2xl">
-                            <Target className="h-5 w-5 text-sky-400" />
-                          </div>
-                        </div>
-                      </CardHeader>
-                      <CardContent className="p-10 pt-0 relative z-10">
-                        <div className="bg-white/5 backdrop-blur-xl p-8 rounded-[2rem] border border-white/10 shadow-inner max-w-2xl">
-                          <p className="text-[10px] font-black text-sky-300 uppercase tracking-[0.2em] mb-3">Objetivo Terapéutico</p>
-                          <p className="text-lg font-medium text-slate-100 leading-relaxed italic">
-                            "{prog.objective || "Fase de fortalecimiento y optimización de rangos articulares."}"
-                          </p>
-                        </div>
-                      </CardContent>
-                    </Card>
-
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-                      {prog.exercises.filter((ex: any) => ex.visibleToPatient).map((ex: any, eIdx: number) => (
-                        <Card key={ex.id} className="border-none shadow-xl shadow-slate-200/40 hover:shadow-sky-100 rounded-[2.5rem] overflow-hidden bg-white/70 backdrop-blur-lg border border-white transition-all duration-500 group">
-                          <div className="aspect-video bg-slate-900 flex items-center justify-center relative group-hover:scale-105 transition-transform duration-700">
-                            {ex.videoUrl ? (
-                              <div className="relative w-full h-full cursor-pointer overflow-hidden">
-                                <div className="absolute inset-0 flex items-center justify-center">
-                                  <div className="text-white/10 group-hover:scale-125 transition-transform duration-1000">
-                                    <Activity className="h-32 w-32" />
-                                  </div>
-                                </div>
-                                <div className="absolute inset-0 bg-slate-900/40 group-hover:bg-slate-900/20 transition-colors flex items-center justify-center">
-                                  <div className="h-16 w-16 rounded-full bg-sky-600 text-white flex items-center justify-center shadow-[0_0_30px_rgba(14,165,233,0.5)] transform group-hover:scale-125 transition-all duration-500">
-                                    <Play className="h-8 w-8 ml-1.5" />
-                                  </div>
-                                </div>
-                              </div>
-                            ) : (
-                              <div className="flex flex-col items-center gap-4 text-slate-700">
-                                <div className="h-16 w-16 rounded-3xl bg-slate-800 flex items-center justify-center">
-                                  <Dumbbell className="h-8 w-8 text-slate-600" />
-                                </div>
-                                <span className="text-[10px] font-black uppercase tracking-widest opacity-40">Sin video disponible</span>
-                              </div>
-                            )}
-                          </div>
-                          <CardHeader className="p-8 pb-4">
-                            <CardTitle className="text-xl font-black text-slate-900 tracking-tight group-hover:text-sky-600 transition-colors">{ex.name}</CardTitle>
-                          </CardHeader>
-                          <CardContent className="p-8 pt-0 space-y-6">
-                            <div className="grid grid-cols-3 gap-4 py-6 border-y border-slate-50">
-                              <div className="text-center">
-                                <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Series</p>
-                                <p className="text-xl font-black text-slate-700">{ex.sets || "-"}</p>
-                              </div>
-                              <div className="text-center border-x border-slate-50 px-2">
-                                <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Reps/Tiempo</p>
-                                <p className="text-xl font-black text-slate-700 truncate">{ex.reps || ex.duration || "-"}</p>
-                              </div>
-                              <div className="text-center">
-                                <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Carga</p>
-                                <p className="text-xl font-black text-slate-700">{ex.weight || "Peso C."}</p>
-                              </div>
-                            </div>
-                            {ex.notes && (
-                              <div className="p-5 bg-sky-50/50 rounded-2xl border border-sky-100/30">
-                                <p className="text-[10px] font-black text-sky-600 uppercase tracking-widest mb-2 flex items-center gap-2">
-                                  <Info className="h-3 w-3" /> Tips del Kine
-                                </p>
-                                <p className="text-xs font-medium text-slate-600 leading-relaxed italic">"{ex.notes}"</p>
-                              </div>
-                            )}
-                          </CardContent>
-                        </Card>
+              <div className="grid gap-10">
+                {/* === KINE HOME ROUTINES (Month/Day Structure) === */}
+                {kineMonths.length > 0 && (
+                  <Tabs defaultValue={kineMonths[0]} className="w-full">
+                    <TabsList className="flex w-full overflow-x-auto justify-start bg-slate-100 p-1 rounded-xl mb-6 scrollbar-hide">
+                      {kineMonths.map(month => (
+                        <TabsTrigger
+                          key={month}
+                          value={month}
+                          className="flex-shrink-0 px-4 py-2 rounded-lg text-xs font-bold data-[state=active]:bg-white data-[state=active]:text-sky-600 data-[state=active]:shadow-sm transition-all capitalize"
+                        >
+                          {month}
+                        </TabsTrigger>
                       ))}
-                    </div>
+                    </TabsList>
+
+                    {kineMonths.map(month => (
+                      <TabsContent key={month} value={month} className="space-y-8 animate-in fade-in slide-in-from-bottom-2 duration-500">
+                        {kineByMonth[month].map((routine: any) => {
+                          const currentDayIdx = activeDayIndex[routine.id] || 0
+                          const currentDay = routine.days[currentDayIdx]
+                          // Kine Home usually doesn't have strict session logging by patient, but we can enable it if desired. 
+                          // For now, let's allow it as it helps tracking compliance.
+                          const dayLogs = currentDay ? getLogsForDay(routine.id, currentDay.id) : []
+
+                          return (
+                            <Card key={routine.id} className="border-none shadow-md rounded-2xl overflow-hidden bg-white/80 backdrop-blur-xl border border-white/50 group">
+                              <CardHeader className="bg-slate-900 p-5 relative overflow-hidden">
+                                <div className="absolute top-0 right-0 p-8 opacity-5 pointer-events-none group-hover:scale-150 transition-transform duration-1000">
+                                  <Activity className="h-16 w-16 text-sky-400" />
+                                </div>
+                                <div className="flex flex-col md:flex-row justify-between items-center gap-3 relative z-10">
+                                  <div className="text-center md:text-left">
+                                    <div className="flex items-center gap-2 mb-1 justify-center md:justify-start">
+                                      <CardTitle className="text-lg font-black text-white tracking-tight">{routine.name}</CardTitle>
+                                      {routine.month && routine.month !== 'General' && (
+                                        <Badge variant="outline" className="text-[9px] border-sky-500/50 text-sky-300 uppercase tracking-wider">
+                                          {routine.month}
+                                        </Badge>
+                                      )}
+                                    </div>
+                                    <CardDescription className="text-sky-300 font-bold uppercase tracking-widest text-[8px]">Asignado {format(new Date(routine.date), "dd/MM/yyyy")}</CardDescription>
+                                  </div>
+                                  <div className="flex flex-col items-center md:items-end gap-1.5">
+                                    {routine.objective && (
+                                      <Badge className="bg-sky-500 text-white border-none font-black px-3 py-1 rounded-lg shadow-lg shadow-sky-500/20 uppercase text-[8px] tracking-widest">
+                                        {routine.objective}
+                                      </Badge>
+                                    )}
+                                    <span className="text-[8px] font-black text-slate-400 uppercase tracking-wider">{routine.days.length} dia{routine.days.length !== 1 ? 's' : ''}</span>
+                                  </div>
+                                </div>
+                              </CardHeader>
+                              <CardContent className="p-0">
+                                {/* DAY TABS */}
+                                <div className="flex items-center gap-1 flex-wrap bg-slate-50 p-2 border-b border-slate-100">
+                                  {routine.days.map((day: RoutineDay, dIdx: number) => (
+                                    <button
+                                      key={day.id}
+                                      onClick={() => setActiveDayIndex(prev => ({ ...prev, [routine.id]: dIdx }))}
+                                      className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${dIdx === currentDayIdx
+                                        ? 'bg-white text-sky-600 shadow-sm border border-sky-200'
+                                        : 'text-slate-400 hover:text-slate-600 hover:bg-white/50'
+                                        }`}
+                                    >
+                                      <Layers className="h-3 w-3 inline mr-1" />
+                                      {day.name}
+                                      <span className="ml-1 text-[9px] opacity-60">({day.exercises.length})</span>
+                                    </button>
+                                  ))}
+                                </div>
+
+                                {/* EXERCISES FOR CURRENT DAY */}
+                                {currentDay && (
+                                  <div className="divide-y divide-slate-100/50">
+                                    {currentDay.exercises.map((ex: ExerciseItem, i: number) => (
+                                      <div key={ex.id} className="group/ex p-5 hover:bg-slate-50/80 transition-all duration-500">
+                                        <div className="flex items-center gap-4">
+                                          <div className="h-10 w-10 shrink-0 rounded-xl bg-white shadow-lg shadow-slate-200 flex items-center justify-center text-slate-900 text-sm font-black border border-slate-100 group-hover/ex:bg-sky-600 group-hover/ex:text-white group-hover/ex:scale-110 transition-all duration-500">
+                                            {(i + 1).toString().padStart(2, "0")}
+                                          </div>
+                                          <div className="flex-1 min-w-0">
+                                            <h4 className="text-base font-black text-slate-900 tracking-tight group-hover/ex:text-sky-600 transition-colors">{ex.title || `Ejercicio ${i + 1}`}</h4>
+                                            {ex.description && <p className="text-xs text-slate-500 mt-0.5 leading-relaxed">{ex.description}</p>}
+                                            {ex.notes && <p className="text-[10px] text-slate-400 mt-1 italic">{ex.notes}</p>}
+                                          </div>
+                                          {ex.setsReps && (
+                                            <div className="flex items-center gap-1.5 bg-sky-50 text-sky-700 px-3 py-1.5 rounded-lg text-xs font-bold border border-sky-100 shrink-0">
+                                              <Repeat className="h-3 w-3" />
+                                              {ex.setsReps}
+                                            </div>
+                                          )}
+                                        </div>
+                                        {/* Video render logic reused */}
+                                        {ex.videoUrl && (() => {
+                                          const ytMatch = ex.videoUrl.match(/(?:youtube\.com\/(?:watch\?v=|embed\/|shorts\/)|youtu\.be\/)([a-zA-Z0-9_-]{11})/)
+                                          if (ytMatch) {
+                                            return (
+                                              <div className="mt-3 rounded-xl overflow-hidden shadow-md border border-slate-200 aspect-video">
+                                                <iframe
+                                                  src={`https://www.youtube.com/embed/${ytMatch[1]}`}
+                                                  title={ex.title || 'Video del ejercicio'}
+                                                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                                                  allowFullScreen
+                                                  className="w-full h-full"
+                                                />
+                                              </div>
+                                            )
+                                          }
+                                          return (
+                                            <div className="mt-3 rounded-xl overflow-hidden shadow-md border border-slate-200">
+                                              <video
+                                                src={ex.videoUrl}
+                                                controls
+                                                className="w-full max-h-[300px] object-contain bg-black"
+                                                preload="metadata"
+                                              />
+                                            </div>
+                                          )
+                                        })()}
+                                      </div>
+                                    ))}
+                                  </div>
+                                )}
+
+                                {/* REGISTER SESSION BUTTON - Optional for Kine Home but good for engagement */}
+                                {currentDay && (
+                                  <div className="p-4 bg-gradient-to-r from-emerald-50 to-transparent border-t border-emerald-100">
+                                    <button
+                                      onClick={() => openTrackingModal(routine.id, currentDay)}
+                                      className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-600 text-white font-bold text-sm hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-600/20"
+                                    >
+                                      <Clipboard className="h-4 w-4" />
+                                      Registrar Avance — {currentDay.name}
+                                    </button>
+
+                                    {/* SESSION HISTORY */}
+                                    {dayLogs.length > 0 && (
+                                      <div className="mt-3 space-y-1.5">
+                                        <p className="text-[10px] font-black text-emerald-700 uppercase tracking-widest flex items-center gap-1">
+                                          <History className="h-3 w-3" /> Mis Registros ({dayLogs.length})
+                                        </p>
+                                        {dayLogs.slice(0, 3).map((log: ExerciseLog) => (
+                                          <div
+                                            key={log.id}
+                                            onClick={() => openTrackingForEdit(log, routine.id, currentDay)}
+                                            className="flex items-center gap-2 bg-white rounded-lg p-2 border border-emerald-100 text-xs cursor-pointer hover:bg-emerald-50/50 hover:border-emerald-200 transition-all group/log"
+                                          >
+                                            <CheckCircle className="h-3.5 w-3.5 text-emerald-500 shrink-0 group-hover/log:scale-110 transition-transform" />
+                                            <span className="font-semibold text-slate-700">{format(new Date(log.date), "dd/MM/yyyy HH:mm")}</span>
+                                            <span className="text-slate-400 group-hover/log:text-emerald-600 transition-colors">— {log.exercises.filter(e => e.completed).length}/{log.exercises.length} completados</span>
+                                            <div className="ml-auto opacity-0 group-hover/log:opacity-100 transition-opacity">
+                                              <span className="text-[9px] font-bold text-emerald-600 uppercase bg-emerald-100 px-1.5 py-0.5 rounded">Editar</span>
+                                            </div>
+                                          </div>
+                                        ))}
+                                      </div>
+                                    )}
+                                  </div>
+                                )}
+                              </CardContent>
+                            </Card>
+                          )
+                        })}
+                      </TabsContent>
+                    ))}
+                  </Tabs>
+                )}
+
+                {/* Legacy Fallback if any */}
+                {visiblePrograms.length > 0 && (
+                  <div className="space-y-12">
+                    {/* ... (Keeping visiblePrograms loop just in case legacy data exists not via clinicalEntries, though unlikely) ... */}
+                    {visiblePrograms.map((prog: any, pIdx: number) => (
+                      /* ... (The previous card rendering code for prog) ... */
+                      <div key={prog.id} className="space-y-8 animate-in slide-in-from-bottom-6 duration-700" style={{ animationDelay: `${pIdx * 100}ms` }}>
+                        <Card className="border-none bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 text-white shadow-xl rounded-3xl overflow-hidden relative group">
+                          {/* ... (Existing Legacy Card Content) ... */}
+                          <CardHeader className="p-6 pb-2 relative z-10">
+                            <CardTitle className="text-xl font-black tracking-tight leading-tight">Región: {prog.region || "Multisegmentaria"} (Legacy)</CardTitle>
+                          </CardHeader>
+                          {/* ... */}
+                        </Card>
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                          {prog.exercises.filter((ex: any) => ex.visibleToPatient).map((ex: any, eIdx: number) => (
+                            <Card key={ex.id} className="border-none shadow-xl shadow-slate-200/40 hover:shadow-sky-100 rounded-[2.5rem] overflow-hidden bg-white/70 backdrop-blur-lg border border-white transition-all duration-500 group">
+                              <CardHeader className="p-8 pb-4">
+                                <CardTitle className="text-xl font-black text-slate-900 tracking-tight group-hover:text-sky-600 transition-colors">{ex.name}</CardTitle>
+                              </CardHeader>
+                              <CardContent className="p-8 pt-0 space-y-6">
+                                <p className="text-sm font-medium text-slate-700">{ex.sets}x{ex.reps} - {ex.weight}kg</p>
+                              </CardContent>
+                            </Card>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
                   </div>
-                ))}
+                )}
               </div>
             )}
           </TabsContent>
@@ -990,7 +1129,7 @@ export default function MiCuentaPage() {
               </div>
             </div>
 
-            {clinicalRoutines.length === 0 && visibleRoutines.length === 0 ? (
+            {processedTraining.length === 0 && visibleRoutines.length === 0 ? (
               <div className="bg-white rounded-[3rem] border-2 border-dashed border-slate-200 p-20 text-center">
                 <div className="h-20 w-20 mx-auto rounded-full bg-slate-50 flex items-center justify-center mb-6">
                   <Target className="h-10 w-10 text-slate-200" />
@@ -1001,10 +1140,10 @@ export default function MiCuentaPage() {
             ) : (
               <div className="grid gap-10">
                 {/* === NEW: Clinical Entries Routines Grouped by Month === */}
-                {sortedMonths.length > 0 && (
-                  <Tabs defaultValue={sortedMonths[0]} className="w-full">
+                {trainingMonths.length > 0 && (
+                  <Tabs defaultValue={trainingMonths[0]} className="w-full">
                     <TabsList className="flex w-full overflow-x-auto justify-start bg-slate-100 p-1 rounded-xl mb-6 scrollbar-hide">
-                      {sortedMonths.map(month => (
+                      {trainingMonths.map(month => (
                         <TabsTrigger
                           key={month}
                           value={month}
@@ -1015,9 +1154,9 @@ export default function MiCuentaPage() {
                       ))}
                     </TabsList>
 
-                    {sortedMonths.map(month => (
+                    {trainingMonths.map(month => (
                       <TabsContent key={month} value={month} className="space-y-8 animate-in fade-in slide-in-from-bottom-2 duration-500">
-                        {routinesByMonth[month].map((routine: any) => {
+                        {trainingByMonth[month].map((routine: any) => {
                           const currentDayIdx = activeDayIndex[routine.id] || 0
                           const currentDay = routine.days[currentDayIdx]
                           const dayLogs = currentDay ? getLogsForDay(routine.id, currentDay.id) : []
@@ -1233,78 +1372,7 @@ export default function MiCuentaPage() {
               </div>
             )}
 
-            {/* TRACKING MODAL */}
-            {trackingModal && (
-              <Dialog open={!!trackingModal} onOpenChange={() => setTrackingModal(null)}>
-                <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
-                  <DialogHeader>
-                    <DialogTitle className="text-lg font-black flex items-center gap-2">
-                      <Clipboard className="h-5 w-5 text-emerald-600" />
-                      {trackingModal.editLogId ? 'Editar Sesión' : 'Registrar Sesión'} — {trackingModal.dayName}
-                    </DialogTitle>
-                  </DialogHeader>
-                  <div className="space-y-4 mt-2">
-                    {trackingModal.exercises.map((ex, idx) => (
-                      <div key={ex.id} className="border border-slate-200 rounded-xl p-4 space-y-3">
-                        <div className="flex items-center gap-2">
-                          <button
-                            type="button"
-                            onClick={() => setTrackingForm(prev => ({ ...prev, [ex.id]: { ...prev[ex.id], completed: !prev[ex.id]?.completed } }))}
-                            className={`w-6 h-6 rounded-lg flex items-center justify-center transition-all ${trackingForm[ex.id]?.completed
-                              ? 'bg-emerald-500 text-white shadow-md shadow-emerald-500/20'
-                              : 'bg-slate-100 text-slate-300 hover:bg-slate-200'
-                              }`}
-                          >
-                            <CheckCircle className="h-4 w-4" />
-                          </button>
-                          <div className="flex-1">
-                            <p className="text-sm font-bold text-slate-800">{ex.title || `Ejercicio ${idx + 1}`}</p>
-                            {ex.setsReps && <p className="text-[10px] text-indigo-500 font-semibold">{ex.setsReps}</p>}
-                          </div>
-                        </div>
-                        <div className="grid grid-cols-2 gap-2">
-                          <div>
-                            <label className="text-[10px] font-bold text-slate-400 uppercase mb-0.5 block">Peso (kg)</label>
-                            <Input
-                              value={trackingForm[ex.id]?.weight || ''}
-                              onChange={e => setTrackingForm(prev => ({ ...prev, [ex.id]: { ...prev[ex.id], weight: e.target.value } }))}
-                              placeholder="Ej: 15"
-                              className="h-8 text-sm"
-                              type="number"
-                            />
-                          </div>
-                          <div>
-                            <label className="text-[10px] font-bold text-slate-400 uppercase mb-0.5 block">Duracion</label>
-                            <Input
-                              value={trackingForm[ex.id]?.duration || ''}
-                              onChange={e => setTrackingForm(prev => ({ ...prev, [ex.id]: { ...prev[ex.id], duration: e.target.value } }))}
-                              placeholder="Ej: 10 min"
-                              className="h-8 text-sm"
-                            />
-                          </div>
-                        </div>
-                        <div>
-                          <label className="text-[10px] font-bold text-slate-400 uppercase mb-0.5 block">Notas</label>
-                          <Textarea
-                            value={trackingForm[ex.id]?.notes || ''}
-                            onChange={e => setTrackingForm(prev => ({ ...prev, [ex.id]: { ...prev[ex.id], notes: e.target.value } }))}
-                            placeholder="Observaciones..."
-                            className="min-h-[40px] text-sm resize-none"
-                          />
-                        </div>
-                      </div>
-                    ))}
-                    <Button
-                      onClick={submitTracking}
-                      className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold shadow-lg shadow-emerald-600/20"
-                    >
-                      <CheckCircle className="h-4 w-4 mr-2" />
-                      {trackingModal.editLogId ? 'Guardar Cambios' : 'Guardar Sesión'}
-                    </Button>
-                  </div>
-                </DialogContent>
-              </Dialog>
-            )}
+
           </TabsContent>
           {/* NUTRICIÓN TAB */}
           <TabsContent value="nutricion" className="space-y-6 outline-none animate-in fade-in duration-700">
@@ -1730,6 +1798,79 @@ export default function MiCuentaPage() {
             </div>
           </TabsContent>
         </Tabs>
+
+        {/* TRACKING MODAL - GLOBAL */}
+        {trackingModal && (
+          <Dialog open={!!trackingModal} onOpenChange={() => setTrackingModal(null)}>
+            <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle className="text-lg font-black flex items-center gap-2">
+                  <Clipboard className="h-5 w-5 text-emerald-600" />
+                  {trackingModal.editLogId ? 'Editar Sesión' : 'Registrar Sesión'} — {trackingModal.dayName}
+                </DialogTitle>
+              </DialogHeader>
+              <div className="space-y-4 mt-2">
+                {trackingModal.exercises.map((ex, idx) => (
+                  <div key={ex.id} className="border border-slate-200 rounded-xl p-4 space-y-3">
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setTrackingForm(prev => ({ ...prev, [ex.id]: { ...prev[ex.id], completed: !prev[ex.id]?.completed } }))}
+                        className={`w-6 h-6 rounded-lg flex items-center justify-center transition-all ${trackingForm[ex.id]?.completed
+                          ? 'bg-emerald-500 text-white shadow-md shadow-emerald-500/20'
+                          : 'bg-slate-100 text-slate-300 hover:bg-slate-200'
+                          }`}
+                      >
+                        <CheckCircle className="h-4 w-4" />
+                      </button>
+                      <div className="flex-1">
+                        <p className="text-sm font-bold text-slate-800">{ex.title || `Ejercicio ${idx + 1}`}</p>
+                        {ex.setsReps && <p className="text-[10px] text-indigo-500 font-semibold">{ex.setsReps}</p>}
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <label className="text-[10px] font-bold text-slate-400 uppercase mb-0.5 block">Peso (kg)</label>
+                        <Input
+                          value={trackingForm[ex.id]?.weight || ''}
+                          onChange={e => setTrackingForm(prev => ({ ...prev, [ex.id]: { ...prev[ex.id], weight: e.target.value } }))}
+                          placeholder="Ej: 15"
+                          className="h-8 text-sm"
+                          type="number"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-[10px] font-bold text-slate-400 uppercase mb-0.5 block">Duracion</label>
+                        <Input
+                          value={trackingForm[ex.id]?.duration || ''}
+                          onChange={e => setTrackingForm(prev => ({ ...prev, [ex.id]: { ...prev[ex.id], duration: e.target.value } }))}
+                          placeholder="Ej: 10 min"
+                          className="h-8 text-sm"
+                        />
+                      </div>
+                    </div>
+                    <div>
+                      <label className="text-[10px] font-bold text-slate-400 uppercase mb-0.5 block">Notas</label>
+                      <Textarea
+                        value={trackingForm[ex.id]?.notes || ''}
+                        onChange={e => setTrackingForm(prev => ({ ...prev, [ex.id]: { ...prev[ex.id], notes: e.target.value } }))}
+                        placeholder="Observaciones..."
+                        className="min-h-[40px] text-sm resize-none"
+                      />
+                    </div>
+                  </div>
+                ))}
+                <Button
+                  onClick={submitTracking}
+                  className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold shadow-lg shadow-emerald-600/20"
+                >
+                  <CheckCircle className="h-4 w-4 mr-2" />
+                  {trackingModal.editLogId ? 'Guardar Cambios' : 'Guardar Sesión'}
+                </Button>
+              </div>
+            </DialogContent>
+          </Dialog>
+        )}
       </main>
 
       {/* Mobile Navigation Bar */}

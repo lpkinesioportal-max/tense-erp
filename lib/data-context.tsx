@@ -60,6 +60,7 @@ import {
 } from "./mock-data"
 import { supabase, isSupabaseConfigured } from "./supabase-client"
 import { SYNC_CONFIG } from "./supabase-sync"
+import { fetchClientLogs } from "./exercise-logs.storage"
 
 const mockClinicalTasks: ClinicalTask[] = []
 const mockClinicalTaskEvents: ClinicalTaskEvent[] = []
@@ -798,17 +799,46 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
 
       const entries = data.map(row => {
         const entry = toCamelCase(row) as ClinicalEntry
-        // Flatten content into entry for easier access in UI
         return { ...(entry.content || {}), ...entry }
       })
+
+      // Fetch exercise logs
+      const logs = await fetchClientLogs(clientId)
+      const logEntries = logs.map(log => ({
+        id: log.id,
+        clientId,
+        professionalId: '',
+        serviceCategory: 'kinesiologia',
+        formType: 'exercise_log' as any,
+        sessionNumber: 0,
+        attentionDate: log.date,
+        visibleToPatient: true,
+        content: log,
+        templateSnapshot: {},
+        bodyMap: {},
+        adherence: {},
+        points: 0,
+        createdAt: log.date,
+        updatedAt: log.date
+      } as unknown as ClinicalEntry))
+
+      const allEntries = [...entries, ...logEntries].sort((a, b) =>
+        new Date(b.attentionDate).getTime() - new Date(a.attentionDate).getTime()
+      )
+
       setClinicalEntries(prev => {
         // Merge with existing avoiding duplicates
         const otherEntries = prev.filter(e => e.clientId !== clientId)
-        return [...otherEntries, ...entries]
+        return [...otherEntries, ...allEntries]
       })
-      return entries
-    } catch (error) {
+      return allEntries
+    } catch (error: any) {
       console.error("Error loading clinical entries:", error)
+      if (error && typeof error === 'object') {
+        console.error("Error message:", error.message)
+        console.error("Error details:", error.details)
+        console.error("Error hint:", error.hint)
+      }
       return []
     }
   }

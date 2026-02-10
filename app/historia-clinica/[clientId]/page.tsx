@@ -1196,7 +1196,7 @@ function FichaDisplay({ item, config, typeInfo, onEdit }: { item: any, config: P
             }}>
               <Settings className="h-3.5 w-3.5" />
             </Button>
-            {item.formType === 'training_routine' && (
+            {(item.isVisible !== undefined) && (
               <Badge variant={item.isVisible !== false ? "outline" : "destructive"} className={cn("text-[10px] h-5", item.isVisible !== false ? "bg-green-50 text-green-700 border-green-200" : "bg-red-50 text-red-700 border-red-200")}>
                 {item.isVisible !== false ? "Visible" : "Oculto"}
               </Badge>

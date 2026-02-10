@@ -2,7 +2,7 @@ import { ClinicalFormType, ClinicalFormConfig } from "./types"
 import { Activity, Dumbbell, Apple, Sparkles, Heart, FileText } from "lucide-react"
 
 export const SERVICE_CATEGORIES = [
-    { id: "Kinesiología", label: "Kinesiología", icon: Activity, color: "text-blue-600 bg-blue-50", types: ["kinesiology_evaluation", "kinesiology_treatment", "kine_home"] },
+    { id: "Kinesiología", label: "Kinesiología", icon: Activity, color: "text-blue-600 bg-blue-50", types: ["kinesiology_evaluation", "kinesiology_treatment", "kine_home", "exercise_log"] },
     { id: "Entrenamiento", label: "Entrenamiento", icon: Dumbbell, color: "text-orange-600 bg-orange-50", types: ["training_evaluation", "training_routine"] },
     { id: "Nutrición", label: "Nutrición", icon: Apple, color: "text-green-600 bg-green-50", types: ["nutrition_anthropometry", "nutrition_recipe"] },
     { id: "Masajes", label: "Masajes", icon: Sparkles, color: "text-purple-600 bg-purple-50", types: ["massage_evaluation"] },
@@ -15,6 +15,7 @@ export const FORM_TYPES_INFO: { value: ClinicalFormType; label: string; icon: an
     { value: "kinesiology_evaluation", label: "Evaluación Kinésica", icon: Activity, color: "bg-blue-600", category: "Kinesiología" },
     { value: "kinesiology_treatment", label: "Tratamiento Kinésico", icon: Activity, color: "bg-blue-500", category: "Kinesiología" },
     { value: "kine_home", label: "Kine en Casa", icon: Activity, color: "bg-blue-400", category: "Kinesiología" },
+    { value: "exercise_log", label: "Registro de Avance", icon: Activity, color: "bg-blue-300", category: "Kinesiología" },
     { value: "training_evaluation", label: "Evaluación Entrenamiento", icon: Dumbbell, color: "bg-orange-600", category: "Entrenamiento" },
     { value: "training_routine", label: "Rutina Entrenamiento", icon: Dumbbell, color: "bg-orange-500", category: "Entrenamiento" },
     { value: "nutrition_anthropometry", label: "Antropometría", icon: Apple, color: "bg-green-600", category: "Nutrición" },
@@ -26,11 +27,29 @@ export const FORM_TYPES_INFO: { value: ClinicalFormType; label: string; icon: an
     { value: "personal", label: "Datos Personales", icon: FileText, color: "bg-slate-700", category: "Datos Personales" },
 ]
 
+// ... code ...
+
+
+
 export const getDefaultFormConfig = (formType: ClinicalFormType): Partial<ClinicalFormConfig> => {
     // This replicates the logic from app/configuracion/fichas-clinicas/page.tsx
     // to ensure consistency without importing from the page file directly.
 
     switch (formType) {
+        case "exercise_log":
+            return {
+                name: "Registro de Avance",
+                description: "Registro de ejercicios realizados por el paciente",
+                sections: [
+                    { id: "summary", key: "summary", title: "Resumen", order: 0, isActive: true },
+                    { id: "details", key: "details", title: "Detalle", order: 1, isActive: true },
+                ],
+                fields: [
+                    { id: "1", key: "dayName", label: "Día de Rutina", type: "text", section: "summary", order: 0, isActive: true, visibleToPatient: true },
+                    { id: "2", key: "notes", label: "Notas de Sesión", type: "textarea", section: "details", order: 2, isActive: true, visibleToPatient: true },
+                    { id: "3", key: "exercises", label: "Ejercicios Realizados", type: "exercise_list", section: "details", order: 1, isActive: true, visibleToPatient: true },
+                ]
+            }
         case "personal":
             return {
                 name: "Datos Personales del Paciente",
@@ -61,6 +80,7 @@ export const getDefaultFormConfig = (formType: ClinicalFormType): Partial<Clinic
                     { id: "17", key: "occupationErgonomic", label: "¿Condiciones ergonómicas?", type: "toggle", section: "habits", order: 3, isActive: true, visibleToPatient: true },
                     { id: "18", key: "emergencyContact", label: "Nombre Contacto Emergencia", type: "text", section: "emergency", order: 0, isActive: true, visibleToPatient: true },
                     { id: "19", key: "emergencyPhone", label: "Teléfono Emergencia", type: "text", section: "emergency", order: 1, isActive: true, visibleToPatient: true },
+                    { id: "99", key: "isVisible", label: "Visible para el Paciente", type: "toggle", section: "admin", order: 99, isActive: true, visibleToPatient: false },
                 ],
             }
         case "kinesiology_evaluation":
@@ -75,6 +95,7 @@ export const getDefaultFormConfig = (formType: ClinicalFormType): Partial<Clinic
                     { id: "diagnosis", key: "diagnosis", title: "Diagnóstico y Plan", order: 4, isActive: true },
                 ],
                 fields: [
+                    { id: "0", key: "month", label: "Mes / Etapa", type: "text", section: "clinical", order: -1, isActive: true, visibleToPatient: true },
                     { id: "1", key: "consultReason", label: "Motivo de Consulta", type: "textarea", section: "clinical", order: 0, isActive: true, visibleToPatient: true, required: true },
                     { id: "2", key: "painType", label: "Tipo de Dolor", type: "text", section: "clinical", order: 1, isActive: true, visibleToPatient: true },
                     { id: "3", key: "evaScale", label: "EVA (Escala de Dolor)", type: "scale", section: "clinical", order: 2, isActive: true, visibleToPatient: true, min: 0, max: 10 },
@@ -97,6 +118,7 @@ export const getDefaultFormConfig = (formType: ClinicalFormType): Partial<Clinic
                     // Diagnosis
                     { id: "17", key: "diagnosis", label: "Diagnóstico", type: "textarea", section: "diagnosis", order: 0, isActive: true, visibleToPatient: false },
                     { id: "18", key: "treatmentPlan", label: "Plan de Tratamiento", type: "textarea", section: "diagnosis", order: 1, isActive: true, visibleToPatient: true },
+                    { id: "99", key: "isVisible", label: "Visible para el Paciente", type: "toggle", section: "diagnosis", order: 99, isActive: true, visibleToPatient: false },
                 ]
             }
         case "kinesiology_treatment":
@@ -105,6 +127,7 @@ export const getDefaultFormConfig = (formType: ClinicalFormType): Partial<Clinic
                 description: "Registro de cada sesión de kinesiología",
                 sections: [{ id: "session", key: "session", title: "Datos de Sesión", order: 0, isActive: true }],
                 fields: [
+                    { id: "0", key: "month", label: "Mes / Etapa", type: "text", section: "session", order: -1, isActive: true, visibleToPatient: true },
                     { id: "1", key: "sessionNumber", label: "Número de Sesión", type: "number", section: "session", order: 0, isActive: true, visibleToPatient: true },
                     { id: "2", key: "attended", label: "¿Vino a la Sesión?", type: "toggle", section: "session", order: 1, isActive: true, visibleToPatient: true },
                     { id: "3", key: "sessionWork", label: "Trabajamos en la Sesión", type: "textarea", section: "session", order: 2, isActive: true, visibleToPatient: true },
@@ -112,6 +135,7 @@ export const getDefaultFormConfig = (formType: ClinicalFormType): Partial<Clinic
                     { id: "5", key: "nextSession", label: "Próxima Sesión", type: "text", section: "session", order: 4, isActive: true, visibleToPatient: true },
                     { id: "6", key: "exercises", label: "Ejercicios", type: "textarea", section: "session", order: 5, isActive: true, visibleToPatient: true },
                     { id: "7", key: "comments", label: "Comentarios", type: "textarea", section: "session", order: 6, isActive: true, visibleToPatient: false },
+                    { id: "99", key: "isVisible", label: "Visible para el Paciente", type: "toggle", section: "session", order: 99, isActive: true, visibleToPatient: false },
                 ]
             }
         case "kine_home":
@@ -123,11 +147,13 @@ export const getDefaultFormConfig = (formType: ClinicalFormType): Partial<Clinic
                     { id: "exercises", key: "exercises", title: "Ejercicios", order: 1, isActive: true },
                 ],
                 fields: [
+                    { id: "0", key: "month", label: "Mes / Etapa", type: "text", section: "program", order: -1, isActive: true, visibleToPatient: true },
                     { id: "1", key: "region", label: "Región", type: "text", section: "program", order: 0, isActive: true, visibleToPatient: true },
                     { id: "2", key: "objective", label: "Objetivo", type: "textarea", section: "program", order: 1, isActive: true, visibleToPatient: true },
                     { id: "3", key: "frequency", label: "Frecuencia (veces por semana)", type: "text", section: "program", order: 2, isActive: true, visibleToPatient: true },
                     { id: "4", key: "duration", label: "Duración del programa", type: "text", section: "program", order: 3, isActive: true, visibleToPatient: true },
-                    { id: "5", key: "exerciseList", label: "Lista de Ejercicios", type: "exercise_list", section: "exercises", order: 0, isActive: true, visibleToPatient: true },
+                    { id: "5", key: "exerciseList", label: "Lista de Ejercicios", type: "exercise_days", section: "exercises", order: 0, isActive: true, visibleToPatient: true },
+                    { id: "99", key: "isVisible", label: "Visible para el Paciente", type: "toggle", section: "program", order: 99, isActive: true, visibleToPatient: false },
                 ]
             }
         case "training_evaluation":
@@ -168,6 +194,7 @@ export const getDefaultFormConfig = (formType: ClinicalFormType): Partial<Clinic
                     { id: "22", key: "coreStability", label: "Estabilidad Core (1-10)", type: "scale", section: "functional", order: 4, isActive: true, visibleToPatient: true, min: 1, max: 10 },
                     { id: "23", key: "mobility", label: "Movilidad (1-10)", type: "scale", section: "functional", order: 5, isActive: true, visibleToPatient: true, min: 1, max: 10 },
                     { id: "24", key: "notes", label: "Observaciones Generales", type: "textarea", section: "functional", order: 6, isActive: true, visibleToPatient: true },
+                    { id: "99", key: "isVisible", label: "Visible para el Paciente", type: "toggle", section: "history", order: 99, isActive: true, visibleToPatient: false },
                 ]
             }
         case "training_routine":
@@ -207,6 +234,7 @@ export const getDefaultFormConfig = (formType: ClinicalFormType): Partial<Clinic
                     { id: "9", key: "visceralFat", label: "Grasa Visceral", type: "number", section: "results", order: 2, isActive: true, visibleToPatient: true },
                     { id: "10", key: "metabolicAge", label: "Edad Metabólica", type: "number", section: "results", order: 3, isActive: true, visibleToPatient: true },
                     { id: "11", key: "observations", label: "Observaciones", type: "textarea", section: "results", order: 4, isActive: true, visibleToPatient: true },
+                    { id: "99", key: "isVisible", label: "Visible para el Paciente", type: "toggle", section: "general", order: 99, isActive: true, visibleToPatient: false },
                 ]
             }
         case "nutrition_recipe":
@@ -219,7 +247,8 @@ export const getDefaultFormConfig = (formType: ClinicalFormType): Partial<Clinic
                     { id: "2", key: "calories", label: "Calorías Diarias", type: "number", section: "plan", order: 1, isActive: true, visibleToPatient: true },
                     { id: "3", key: "macros", label: "Distribución de Macros", type: "textarea", section: "plan", order: 2, isActive: true, visibleToPatient: true },
                     { id: "4", key: "indications", label: "Indicaciones Generales", type: "textarea", section: "plan", order: 3, isActive: true, visibleToPatient: true },
-                    { id: "5", key: "menu", label: "Menú Semanal", type: "textarea", section: "plan", order: 4, isActive: true, visibleToPatient: true },
+                    { id: "5", key: "key", label: "Menú Semanal", type: "textarea", section: "plan", order: 4, isActive: true, visibleToPatient: true },
+                    { id: "99", key: "isVisible", label: "Visible para el Paciente", type: "toggle", section: "plan", order: 99, isActive: true, visibleToPatient: false },
                 ]
             }
         case "massage_evaluation":
@@ -238,6 +267,7 @@ export const getDefaultFormConfig = (formType: ClinicalFormType): Partial<Clinic
                     { id: "8", key: "massageFrequency", label: "Frecuencia de Masajes", type: "text", section: "preferences", order: 3, isActive: true, visibleToPatient: true },
                     { id: "9", key: "sessionWork", label: "Trabajado en Sesión", type: "textarea", section: "session", order: 4, isActive: true, visibleToPatient: true },
                     { id: "10", key: "comments", label: "Comentarios", type: "textarea", section: "session", order: 5, isActive: true, visibleToPatient: false },
+                    { id: "99", key: "isVisible", label: "Visible para el Paciente", type: "toggle", section: "preferences", order: 99, isActive: true, visibleToPatient: false },
                 ]
             }
         case "yoga_evaluation":
@@ -252,6 +282,7 @@ export const getDefaultFormConfig = (formType: ClinicalFormType): Partial<Clinic
                     { id: "4", key: "sleepQuality", label: "Calidad de Sueño", type: "textarea", section: "evaluation", order: 3, isActive: true, visibleToPatient: true },
                     { id: "5", key: "physicalLimitations", label: "Limitaciones Físicas", type: "textarea", section: "evaluation", order: 4, isActive: true, visibleToPatient: true },
                     { id: "6", key: "contraindications", label: "Contraindicaciones", type: "textarea", section: "evaluation", order: 5, isActive: true, visibleToPatient: false },
+                    { id: "99", key: "isVisible", label: "Visible para el Paciente", type: "toggle", section: "evaluation", order: 99, isActive: true, visibleToPatient: false },
                 ]
             }
         case "yoga_routine":
@@ -265,6 +296,7 @@ export const getDefaultFormConfig = (formType: ClinicalFormType): Partial<Clinic
                     { id: "3", key: "frequency", label: "Frecuencia", type: "text", section: "routine", order: 2, isActive: true, visibleToPatient: true },
                     { id: "4", key: "videoUrl", label: "Video (URL)", type: "text", section: "routine", order: 3, isActive: true, visibleToPatient: true },
                     { id: "5", key: "instructions", label: "Indicaciones", type: "textarea", section: "routine", order: 4, isActive: true, visibleToPatient: true },
+                    { id: "99", key: "isVisible", label: "Visible para el Paciente", type: "toggle", section: "routine", order: 99, isActive: true, visibleToPatient: false },
                 ]
             }
         case "evolution_note":
@@ -274,6 +306,7 @@ export const getDefaultFormConfig = (formType: ClinicalFormType): Partial<Clinic
                 sections: [{ id: "note", key: "note", title: "Nota", order: 0, isActive: true }],
                 fields: [
                     { id: "1", key: "content", label: "Contenido", type: "textarea", section: "note", order: 0, isActive: true, visibleToPatient: false },
+                    { id: "99", key: "isVisible", label: "Visible para el Paciente", type: "toggle", section: "note", order: 99, isActive: true, visibleToPatient: false },
                 ]
             }
         default:
