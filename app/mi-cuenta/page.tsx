@@ -1,5 +1,6 @@
 "use client"
 import { useState, useEffect } from "react"
+import { cn } from "@/lib/utils"
 import { useRouter } from "next/navigation"
 import { useAuth } from "@/lib/auth-context"
 import { useData } from "@/lib/data-context"
