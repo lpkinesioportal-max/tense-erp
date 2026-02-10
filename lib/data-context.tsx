@@ -810,8 +810,9 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         professionalId: '',
         serviceCategory: 'kinesiologia',
         formType: 'exercise_log' as any,
-        sessionNumber: 0,
+        sessionNumber: log.sessionNumber || 0,
         attentionDate: log.date,
+        routineId: log.routineId, // Top-level for easier filtering
         visibleToPatient: true,
         content: log,
         templateSnapshot: {},

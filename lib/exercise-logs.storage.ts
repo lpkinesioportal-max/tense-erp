@@ -118,3 +118,72 @@ export async function fetchClientLogs(clientId: string): Promise<ExerciseLog[]> 
         return []
     }
 }
+
+function isValidUUID(uuid: string) {
+    const s = "" + uuid;
+    const match = s.match(/^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[4][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$/);
+    return match !== null;
+}
+
+function generateUUID() {
+    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
+        var r = Math.random() * 16 | 0, v = c == 'x' ? r : (r & 0x3 | 0x8);
+        return v.toString(16);
+    });
+}
+
+export async function syncLocalLogs(clientId: string, syncedLogs: ExerciseLog[]): Promise<void> {
+    if (!isSupabaseConfigured()) return
+
+    const localLogs = loadLogs()
+    const syncedIds = new Set(syncedLogs.map(l => l.id))
+    const unsyncedLogs = localLogs.filter(l => !syncedIds.has(l.id))
+
+    if (unsyncedLogs.length === 0) return
+
+    console.log(`Syncing ${unsyncedLogs.length} unsynced logs for client ${clientId}`)
+
+    let localLogsChanged = false;
+
+    for (const log of unsyncedLogs) {
+        try {
+            let logToSync = { ...log };
+
+            // If the local ID is not a valid UUID, generate a new one for Supabase
+            // and update local storage as well to maintain consistency
+            if (!isValidUUID(log.id)) {
+                console.log(`Log ${log.id} has invalid UUID, generating new one...`);
+                const newId = generateUUID();
+
+                // Update in local array
+                const index = localLogs.findIndex(l => l.id === log.id);
+                if (index !== -1) {
+                    localLogs[index].id = newId;
+                    logToSync.id = newId;
+                    localLogsChanged = true;
+                }
+            }
+
+            const { error } = await supabase.from('exercise_logs').upsert({
+                id: logToSync.id,
+                client_id: clientId,
+                routine_id: logToSync.routineId,
+                day_id: logToSync.dayId,
+                day_name: logToSync.dayName,
+                date: logToSync.date,
+                exercises: logToSync.exercises,
+                notes: logToSync.notes
+            })
+
+            if (error) {
+                console.error('Supabase upsert error:', error);
+            }
+        } catch (error) {
+            console.error('Error syncing log during bulk sync:', error)
+        }
+    }
+
+    if (localLogsChanged) {
+        saveLogs(localLogs);
+    }
+}

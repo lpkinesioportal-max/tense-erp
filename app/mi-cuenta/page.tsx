@@ -14,7 +14,7 @@ import {
   MessageCircle, Bell, ChevronRight, Calendar, User,
   Stethoscope, Target, Play, Video, Download, Info, CheckSquare, Heart,
   TrendingUp, ClipboardCheck, Droplets, Moon, History, Utensils, Flower2, Camera,
-  Sparkles, ShieldCheck, Zap, Brain, Clock, Layers, Clipboard, CheckCircle, Repeat
+  Sparkles, ShieldCheck, Zap, Brain, Clock, Layers, Clipboard, CheckCircle, Repeat, Trash2
 } from "lucide-react"
 import { format } from "date-fns"
 import { es } from "date-fns/locale"
@@ -23,7 +23,7 @@ import { ProgressChart } from "@/components/progreso/progress-chart"
 import { PatientLogForm } from "@/components/progreso/patient-log-form"
 import { PatientTaskList } from "@/components/progreso/patient-task-list"
 import { QuickDailyLog } from "@/components/progreso/quick-daily-log"
-import { loadLogs, addLog, updateLog } from "@/lib/exercise-logs.storage"
+import { loadLogs, addLog, updateLog, deleteLog, syncLocalLogs } from "@/lib/exercise-logs.storage"
 import type { ExerciseLog, RoutineDay, ExerciseItem } from "@/lib/types"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
@@ -70,6 +70,9 @@ export default function MiCuentaPage() {
             const localOnly = prev.filter(l => !syncedIds.has(l.id))
             return [...combined, ...localOnly].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
           })
+
+          // Trigger sync of local logs to Supabase
+          syncLocalLogs(client.id, syncedLogs)
         }
       }).catch(() => { /* clinical_entries table may not exist yet */ })
     }
@@ -269,7 +272,7 @@ export default function MiCuentaPage() {
     } else {
       // Create new log
       const newLog: ExerciseLog = {
-        id: Date.now().toString() + Math.random().toString(36).slice(2, 5),
+        id: crypto.randomUUID ? crypto.randomUUID() : (Date.now().toString() + Math.random().toString(36).slice(2, 5)),
         routineId: trackingModal.routineId,
         dayId: trackingModal.dayId,
         dayName: trackingModal.dayName,
@@ -281,6 +284,13 @@ export default function MiCuentaPage() {
 
     setExerciseLogs(loadLogs())
     setTrackingModal(null)
+  }
+
+  const handleDeleteLog = async (logId: string) => {
+    if (confirm("¿Estás seguro de que deseas eliminar este registro? Esta acción no se puede deshacer.")) {
+      await deleteLog(logId)
+      setExerciseLogs(loadLogs())
+    }
   }
 
   return (
@@ -1063,8 +1073,17 @@ export default function MiCuentaPage() {
                                             <CheckCircle className="h-3.5 w-3.5 text-emerald-500 shrink-0 group-hover/log:scale-110 transition-transform" />
                                             <span className="font-semibold text-slate-700">{format(new Date(log.date), "dd/MM/yyyy HH:mm")}</span>
                                             <span className="text-slate-400 group-hover/log:text-emerald-600 transition-colors">— {log.exercises.filter(e => e.completed).length}/{log.exercises.length} completados</span>
-                                            <div className="ml-auto opacity-0 group-hover/log:opacity-100 transition-opacity">
+                                            <div className="ml-auto flex items-center gap-1.5 opacity-0 group-hover/log:opacity-100 transition-opacity">
                                               <span className="text-[9px] font-bold text-emerald-600 uppercase bg-emerald-100 px-1.5 py-0.5 rounded">Editar</span>
+                                              <button
+                                                onClick={(e) => {
+                                                  e.stopPropagation()
+                                                  handleDeleteLog(log.id)
+                                                }}
+                                                className="p-1 rounded-md text-rose-500 hover:bg-rose-100 transition-colors"
+                                              >
+                                                <Trash2 className="h-3 w-3" />
+                                              </button>
                                             </div>
                                           </div>
                                         ))}
@@ -1286,8 +1305,17 @@ export default function MiCuentaPage() {
                                             <CheckCircle className="h-3.5 w-3.5 text-emerald-500 shrink-0 group-hover/log:scale-110 transition-transform" />
                                             <span className="font-semibold text-slate-700">{format(new Date(log.date), "dd/MM/yyyy HH:mm")}</span>
                                             <span className="text-slate-400 group-hover/log:text-emerald-600 transition-colors">— {log.exercises.filter(e => e.completed).length}/{log.exercises.length} completados</span>
-                                            <div className="ml-auto opacity-0 group-hover/log:opacity-100 transition-opacity">
+                                            <div className="ml-auto flex items-center gap-1.5 opacity-0 group-hover/log:opacity-100 transition-opacity">
                                               <span className="text-[9px] font-bold text-emerald-600 uppercase bg-emerald-100 px-1.5 py-0.5 rounded">Editar</span>
+                                              <button
+                                                onClick={(e) => {
+                                                  e.stopPropagation()
+                                                  handleDeleteLog(log.id)
+                                                }}
+                                                className="p-1 rounded-md text-rose-500 hover:bg-rose-100 transition-colors"
+                                              >
+                                                <Trash2 className="h-3 w-3" />
+                                              </button>
                                             </div>
                                           </div>
                                         ))}

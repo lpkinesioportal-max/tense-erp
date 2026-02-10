@@ -66,6 +66,7 @@ import {
   History as HistoryIcon
 } from "lucide-react"
 import { supabase } from "@/lib/supabase-client"
+import { deleteLog } from "@/lib/exercise-logs.storage"
 import { toast } from "sonner"
 import Link from "next/link"
 import { cn } from "@/lib/utils"
@@ -103,6 +104,20 @@ export default function PatientHistoryPage() {
     }
   }, [clientId, loadClinicalEntries])
 
+  const handleDeleteExerciseLog = async (logId: string) => {
+    if (confirm("¿Estás seguro de que deseas eliminar este registro de sesión del paciente?")) {
+      try {
+        await deleteLog(logId)
+        toast.success("Registro eliminado correctamente")
+        // Refresh entries
+        if (clientId) {
+          loadClinicalEntries(clientId as string)
+        }
+      } catch (error) {
+        toast.error("Error al eliminar el registro")
+      }
+    }
+  }
   // State
   const [activeCategory, setActiveCategory] = useState<string>("Kinesiología")
   const [editingEntry, setEditingEntry] = useState<any>(null) // New state for editing
@@ -328,6 +343,7 @@ export default function PatientHistoryPage() {
                             typeInfo={typeInfo}
                             allEntries={clinicalEntries}
                             onEdit={handleEdit}
+                            onDeleteLog={handleDeleteExerciseLog}
                           />
                         ))}
                       </div>
@@ -1165,7 +1181,7 @@ function RenderFieldInput({ field, value, onChange }: { field: any, value: any, 
 
 
 // 2. FICHA DISPLAY COMPONENT (The Card in the list)
-function FichaDisplay({ item, config, typeInfo, allEntries, onEdit }: { item: any, config: Partial<ClinicalFormConfig>, typeInfo: any, allEntries?: any[], onEdit: (item: any) => void }) {
+function FichaDisplay({ item, config, typeInfo, allEntries, onEdit, onDeleteLog }: { item: any, config: Partial<ClinicalFormConfig>, typeInfo: any, allEntries?: any[], onEdit: (item: any) => void, onDeleteLog?: (id: string) => void }) {
   const [isOpen, setIsOpen] = useState(false)
 
   // Sort sections
@@ -1597,8 +1613,14 @@ function FichaDisplay({ item, config, typeInfo, allEntries, onEdit }: { item: an
               </h4>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {allEntries
-                  .filter(e => e.formType === 'exercise_log' && (e.content?.routineId === item.id || e.routineId === item.id))
-                  .sort((a, b) => new Date(b.attentionDate).getTime() - new Date(a.attentionDate).getTime())
+                  .filter(e => {
+                    if (e.formType !== 'exercise_log') return false;
+                    // Check various possible locations for routineId
+                    const logRoutineId = e.routineId || e.content?.routineId || e.routine_id;
+                    const targetRoutineId = item.id || item.content?.id;
+                    return logRoutineId === targetRoutineId;
+                  })
+                  .sort((a, b) => new Date(b.attentionDate || b.date).getTime() - new Date(a.attentionDate || a.date).getTime())
                   .map((log, lIdx) => (
                     <div key={log.id || lIdx} className="bg-blue-50/50 rounded-xl p-4 border border-blue-100 group/log hover:bg-blue-50 transition-all shadow-sm">
                       <div className="flex items-center justify-between mb-3">
@@ -1610,9 +1632,20 @@ function FichaDisplay({ item, config, typeInfo, allEntries, onEdit }: { item: an
                             {format(new Date(log.attentionDate), "HH:mm'hs'", { locale: es })}
                           </span>
                         </div>
-                        <Badge variant="outline" className="bg-white text-blue-700 border-blue-200 shadow-sm">
-                          {log.content?.dayName || "Sesión"}
-                        </Badge>
+                        <div className="flex items-center gap-2">
+                          <Badge variant="outline" className="bg-white text-blue-700 border-blue-200 shadow-sm">
+                            {log.content?.dayName || "Sesión"}
+                          </Badge>
+                          {onDeleteLog && (
+                            <button
+                              onClick={() => onDeleteLog(log.id)}
+                              className="p-1.5 rounded-lg text-slate-400 hover:text-rose-500 hover:bg-rose-50 transition-all"
+                              title="Borrar registro de sesión"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </button>
+                          )}
+                        </div>
                       </div>
 
                       {log.content?.notes && (
