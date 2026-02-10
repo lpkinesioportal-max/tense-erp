@@ -300,7 +300,7 @@ export default function TareasPage() {
 
       // Map global staff goals to local OccupationGoal format for calculation
       const goal = (staffGoals || []).find(
-        (g) => g.title.includes(serviceName) && g.startDate.getMonth() === selectedMonth
+        (g) => g.title.includes(serviceName) && new Date(g.startDate).getMonth() === selectedMonth
       )
       const targetOccupation = goal?.targetValue || 0
 
