@@ -21,6 +21,7 @@ interface BodyMapProps {
   onZonesChange: (zones: BodyZone[]) => void
   readOnly?: boolean
   isPatient?: boolean
+  color?: string
 }
 
 const FRONT_ZONES = {
@@ -88,7 +89,7 @@ const BACK_ZONES = {
 
 
 
-export function BodyMap({ zones = [], onZonesChange, readOnly = false, isPatient = false }: BodyMapProps) {
+export function BodyMap({ zones = [], onZonesChange, readOnly = false, isPatient = false, color }: BodyMapProps) {
   const [selectedZone, setSelectedZone] = useState<string | null>(null)
   const [selection, setSelection] = useState<string[]>([])
   const [showDialog, setShowDialog] = useState(false)
@@ -265,17 +266,17 @@ export function BodyMap({ zones = [], onZonesChange, readOnly = false, isPatient
         const isFaded = searchQuery && !zone.label.toLowerCase().includes(searchQuery.toLowerCase())
 
         return (
-          <g key={id} opacity={isFaded || (selectedZone && selectedZone !== id) ? 0.3 : 1} className="pointer-events-auto">
+          <g key={id} opacity={isFaded || (selectedZone && selectedZone !== id) ? 0.3 : 1} className={cn("pointer-events-auto", readOnly && "pointer-events-none")}>
             <circle
               cx={zone.cx}
               cy={zone.cy}
               r={12}
               fill="white"
               fillOpacity={0.01}
-              className="cursor-pointer"
+              className={cn("cursor-pointer", readOnly && "cursor-default")}
               onClick={() => handleZoneClick(id)}
-              onMouseEnter={() => setHoveredZone(id)}
-              onMouseLeave={() => setHoveredZone(null)}
+              onMouseEnter={() => !readOnly && setHoveredZone(id)}
+              onMouseLeave={() => !readOnly && setHoveredZone(null)}
             />
             <circle
               cx={zone.cx}
@@ -283,8 +284,8 @@ export function BodyMap({ zones = [], onZonesChange, readOnly = false, isPatient
               r={7}
               fill="white"
               fillOpacity={isMarked || isSelected ? 0.2 : isHovered ? 0.4 : 0.1}
-              stroke={isMarked ? "#10b981" : "#3b82f6"} // Green if marked, Blue if empty
-              strokeWidth="2"
+              stroke={isMarked ? (color || "#10b981") : (isHovered ? (color || "#3b82f6") : "#cbd5e1")} // Use color prop or default
+              strokeWidth={isMarked || isSelected || isHovered ? "2.5" : "1.5"}
               className={cn(
                 "transition-all duration-300 pointer-events-none",
                 !readOnly && (isSelected ? "r-8" : "hover:r-8")
@@ -292,7 +293,7 @@ export function BodyMap({ zones = [], onZonesChange, readOnly = false, isPatient
             />
             {(isMarked || isSelected) && (
               <g className="pointer-events-none">
-                <circle cx={zone.cx} cy={zone.cy} r={4.5} fill={isSelected ? "#10b981" : "#3b82f6"} filter="url(#glow)" />
+                <circle cx={zone.cx} cy={zone.cy} r={4.5} fill={isSelected ? (color || "#10b981") : (color || "#3b82f6")} filter="url(#glow)" />
                 <circle cx={zone.cx} cy={zone.cy} r={2} fill="white" />
               </g>
             )}
@@ -462,7 +463,7 @@ export function BodyMap({ zones = [], onZonesChange, readOnly = false, isPatient
       </div>
 
       {/* Registro de la Sesión - Compact */}
-      {visibleZones.length > 0 && (
+      {visibleZones.length > 0 && !readOnly && !isPatient && (
         <div className="pt-2 border-t border-slate-100">
           <div className="flex items-center justify-between mb-2">
             <h4 className="text-[10px] font-bold text-slate-600 flex items-center gap-1.5 uppercase tracking-wide">

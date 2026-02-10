@@ -562,9 +562,21 @@ function DynamicEntryForm({
                 {showBodyMap && (
                   <Card className="border-none shadow-sm ring-1 ring-slate-200 bg-white overflow-hidden w-full">
                     <CardHeader className="py-1 px-3 border-b bg-primary/[0.03]">
-                      <div className="flex items-center gap-1.5">
-                        <Activity className="h-3 w-3 text-primary" />
-                        <CardTitle className="text-[9px] font-bold text-slate-500 uppercase tracking-widest">Mapa Corporal</CardTitle>
+                      <div className="flex items-center justify-between w-full">
+                        <div className="flex items-center gap-1.5">
+                          <Activity className="h-3 w-3 text-primary" />
+                          <CardTitle className="text-[9px] font-bold text-slate-500 uppercase tracking-widest">Mapa Corporal</CardTitle>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className={cn("text-[8px] font-black uppercase tracking-tighter", values.showBodyMapToPatient ? "text-emerald-600" : "text-slate-400")}>
+                            {values.showBodyMapToPatient ? "Visible al paciente" : "Privado"}
+                          </span>
+                          <Switch
+                            checked={!!values.showBodyMapToPatient}
+                            onCheckedChange={(val) => setValues(prev => ({ ...prev, showBodyMapToPatient: val }))}
+                            className="h-3.5 w-7 data-[state=checked]:bg-emerald-500"
+                          />
+                        </div>
                       </div>
                     </CardHeader>
                     <div className="p-2 flex justify-center bg-white min-h-[500px]">
@@ -1216,7 +1228,12 @@ function FichaDisplay({ item, config, typeInfo, allEntries, onEdit, onDeleteLog 
             </Button>
             {(item.isVisible !== undefined) && (
               <Badge variant={item.isVisible !== false ? "outline" : "destructive"} className={cn("text-[10px] h-5", item.isVisible !== false ? "bg-green-50 text-green-700 border-green-200" : "bg-red-50 text-red-700 border-red-200")}>
-                {item.isVisible !== false ? "Visible" : "Oculto"}
+                {item.isVisible !== false ? "Visible p/ Paciente" : "Privado"}
+              </Badge>
+            )}
+            {item.showBodyMapToPatient && (
+              <Badge variant="outline" className="text-[10px] h-5 bg-emerald-50 text-emerald-700 border-emerald-200 gap-1">
+                <Activity className="h-2.5 w-2.5" /> Mapa Visible
               </Badge>
             )}
             <Badge variant="outline" className="bg-white/50 border-transparent text-xs">
@@ -1341,9 +1358,17 @@ function FichaDisplay({ item, config, typeInfo, allEntries, onEdit, onDeleteLog 
             const zones = item.bodyZones || item.bodyMap || []
             return (
               <div className="mt-2 pt-2 border-t border-dashed space-y-2">
-                <div className="flex items-center gap-2 text-xs font-medium text-primary">
-                  <Activity className="h-3 w-3" />
-                  <span>Mapa Corporal ({zones.length} zona{zones.length !== 1 ? 's' : ''})</span>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2 text-xs font-medium text-primary">
+                    <Activity className="h-3 w-3" />
+                    <span>Mapa Corporal ({zones.length} zona{zones.length !== 1 ? 's' : ''})</span>
+                  </div>
+                  <Badge variant="outline" className={cn(
+                    "text-[8px] font-black uppercase px-2 py-0 border-none",
+                    item.showBodyMapToPatient ? "bg-emerald-100 text-emerald-700" : "bg-slate-100 text-slate-500"
+                  )}>
+                    {item.showBodyMapToPatient ? "Visible al Paciente" : "Solo Profesional"}
+                  </Badge>
                 </div>
                 <div className="flex justify-center bg-slate-50 rounded-lg p-2" style={{ maxHeight: '350px', overflow: 'hidden' }}>
                   <div style={{ transform: 'scale(0.7)', transformOrigin: 'top center' }}>

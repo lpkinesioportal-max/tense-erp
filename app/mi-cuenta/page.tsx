@@ -37,6 +37,8 @@ export default function MiCuentaPage() {
   const [record, setRecord] = useState<any>(null)
   const [trainingEntries, setTrainingEntries] = useState<any[]>([])
   const [kineEntries, setKineEntries] = useState<any[]>([])
+  const [clinicalTreatments, setClinicalTreatments] = useState<any[]>([])
+  const [clinicalMassages, setClinicalMassages] = useState<any[]>([])
   const [exerciseLogs, setExerciseLogs] = useState<ExerciseLog[]>(loadLogs())
   const [trackingModal, setTrackingModal] = useState<{ routineId: string, dayId: string, dayName: string, exercises: ExerciseItem[], editLogId?: string } | null>(null)
   const [trackingForm, setTrackingForm] = useState<Record<string, { completed: boolean, weight: string, duration: string, notes: string }>>({})
@@ -53,6 +55,42 @@ export default function MiCuentaPage() {
       loadClinicalEntries(client.id).then(entries => {
         setTrainingEntries(entries.filter((e: any) => e.formType === 'training_routine'))
         setKineEntries(entries.filter((e: any) => e.formType === 'kine_home'))
+
+        // Map clinical entries to the internal format expected by the timeline
+        const kineTreats = entries
+          .filter((e: any) => e.formType === 'kinesiology_treatment' && e.isVisible !== false)
+          .map(e => ({
+            id: e.id,
+            date: e.attentionDate || e.createdAt,
+            professionalId: e.professionalId,
+            sessionNumber: e.sessionNumber,
+            sessionWork: e.content?.sessionWork || "Registro de evolución en sesión clínica.",
+            indication: e.content?.indication,
+            exercises: e.content?.exercises,
+            bodyZones: e.content?.bodyZones || e.content?.bodyMap || [],
+            zoneNotes: e.content?.zoneNotes,
+            showBodyMapToPatient: e.content?.showBodyMapToPatient,
+            visibleToPatient: true,
+            type: 'kinesiology'
+          }))
+        setClinicalTreatments(kineTreats)
+
+        const massageTreats = entries
+          .filter((e: any) => e.formType === 'massage_evaluation' && e.isVisible !== false)
+          .map(e => ({
+            id: e.id,
+            date: e.attentionDate || e.createdAt,
+            professionalId: e.professionalId,
+            sessionNumber: e.sessionNumber,
+            sessionWork: e.content?.sessionWork || "Registro de sesión de masoterapia.",
+            indication: e.content?.observations || e.content?.indication,
+            bodyZones: e.content?.bodyZones || e.content?.bodyMap || [],
+            zoneNotes: e.content?.zoneNotes,
+            showBodyMapToPatient: e.content?.showBodyMapToPatient,
+            visibleToPatient: true,
+            type: 'massage'
+          }))
+        setClinicalMassages(massageTreats)
 
         // Load synced logs
         const syncedLogs = entries
@@ -134,12 +172,29 @@ export default function MiCuentaPage() {
   }
 
   // Filter visible items
-  const visibleEvaluations = record?.kinesiologyEvaluations?.filter((e: any) => e.visibleToPatient) || []
-  const visibleTreatments = record?.kinesiologyTreatments?.filter((t: any) => t.visibleToPatient) || []
-  const visiblePrograms = record?.kineHomePrograms?.filter((p: any) => p.visibleToPatient) || []
-  const visibleRoutines = record?.trainingRoutines?.filter((r: any) => r.visibleToPatient) || []
+  const legacyEvaluations = record?.kinesiologyEvaluations?.filter((e: any) => e.visibleToPatient) || []
+  const legacyTreatments = record?.kinesiologyTreatments?.filter((t: any) => t.visibleToPatient) || []
+  const legacyPrograms = record?.kineHomePrograms?.filter((p: any) => p.visibleToPatient) || []
+  const legacyRoutines = record?.trainingRoutines?.filter((r: any) => r.visibleToPatient) || []
+  const legacyMassageSessions = record?.massageEvaluations?.filter((s: any) => s.visibleToPatient) || []
+
+  // Merged items
+  const visibleTreatments = [...legacyTreatments, ...clinicalTreatments]
+    .map(t => ({ ...t, type: t.type || 'kinesiology' }))
+    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+
+  const visibleMassageSessions = [...legacyMassageSessions, ...clinicalMassages]
+    .map(m => ({ ...m, type: m.type || 'massage' }))
+    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+
+  // Unified therapeutic timeline
+  const unifiedSessions = [...visibleTreatments, ...visibleMassageSessions]
+    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+
+  const visibleEvaluations = legacyEvaluations
+  const visiblePrograms = legacyPrograms
+  const visibleRoutines = legacyRoutines
   const visibleEvaluationsTraining = record?.trainingEvaluations?.filter((e: any) => e.visibleToPatient) || []
-  const visibleMassageSessions = record?.massageEvaluations?.filter((s: any) => s.visibleToPatient) || []
   const visibleNutritionalEvaluations = record?.anthropometryEvaluations?.filter((e: any) => e.visibleToPatient) || []
   const visibleYogaSessions = record?.yogaEvaluations?.filter((s: any) => s.visibleToPatient) || []
   const visibleRecipes = record?.recipes?.filter((r: any) => r.visibleToPatient) || []
@@ -395,7 +450,7 @@ export default function MiCuentaPage() {
                 className="flex items-center gap-1.5 data-[state=active]:bg-sky-600 data-[state=active]:text-white data-[state=active]:shadow-md rounded-lg py-1 px-2.5 text-[10px] font-bold transition-all duration-300"
               >
                 <Sparkles className="h-3 w-3" />
-                <span>Wellness</span>
+                <span>Masajes</span>
               </TabsTrigger>
               <TabsTrigger
                 value="yoga"
@@ -708,17 +763,17 @@ export default function MiCuentaPage() {
                   </div>
                   Seguimiento de Sesiones
                 </h3>
-                <p className="text-slate-500 text-[11px] mt-1 ml-9">Historial cronológico de tu proceso terapéutico</p>
+                <p className="text-slate-500 text-[11px] mt-1 ml-9">Historial de tus sesiones de kinesiología y masajes</p>
               </div>
               <div className="flex items-center gap-2">
                 <Badge className="bg-white text-sky-700 border border-sky-100 px-3 py-1 rounded-lg font-bold">
-                  {visibleTreatments.length} Sesiones
+                  {unifiedSessions.length} Sesiones
                 </Badge>
               </div>
             </div>
 
             <div className="relative pl-5 sm:pl-6 space-y-3 before:absolute before:left-[10px] sm:before:left-[13px] before:top-2 before:bottom-2 before:w-[1.5px] before:bg-gradient-to-b before:from-sky-600 before:via-sky-200 before:to-slate-100 before:rounded-full">
-              {visibleTreatments.length === 0 ? (
+              {unifiedSessions.length === 0 ? (
                 <div className="bg-white rounded-[2rem] border-2 border-dashed border-slate-200 p-12 text-center">
                   <div className="h-16 w-16 mx-auto rounded-full bg-slate-50 flex items-center justify-center mb-4">
                     <History className="h-8 w-8 text-slate-300" />
@@ -727,12 +782,12 @@ export default function MiCuentaPage() {
                   <p className="text-sm text-slate-400 mt-1 max-w-xs mx-auto">Tus sesiones compartidas por el profesional aparecerán en esta línea de tiempo.</p>
                 </div>
               ) : (
-                visibleTreatments.map((treat: any, i: number) => (
+                unifiedSessions.map((treat: any, i: number) => (
                   <div key={treat.id} className="relative group animate-in fade-in slide-in-from-left-4 duration-500" style={{ animationDelay: `${i * 100}ms` }}>
                     {/* Timeline Dot */}
                     <div className={`absolute -left-[32px] sm:-left-[36px] top-1 px-1 py-1 rounded-full border-[4px] border-white shadow-md transition-all duration-500 z-10 
                       ${i === 0
-                        ? 'bg-sky-600'
+                        ? (treat.type === 'massage' ? 'bg-rose-500' : 'bg-sky-600')
                         : 'bg-white ring-1 ring-slate-100 group-hover:bg-sky-400 ring-offset-1'}`}
                     >
                       {i === 0 && <Sparkles className="h-3 w-3 text-white animate-pulse" />}
@@ -744,14 +799,19 @@ export default function MiCuentaPage() {
                         <div className="flex flex-col sm:flex-row justify-between items-start gap-4">
                           <div className="flex items-center gap-4">
                             <div className={`h-8 w-8 rounded-lg flex flex-col items-center justify-center shadow-sm transition-transform group-hover:scale-105 duration-500
-                              ${i === 0 ? 'bg-sky-600 text-white' : 'bg-slate-50 text-slate-400 border border-slate-100'}`}>
-                              <span className="text-[6px] font-black uppercase tracking-tighter leading-none opacity-80">S#</span>
-                              <span className="text-md font-black leading-none mt-0.5">{treat.sessionNumber || (visibleTreatments.length - i)}</span>
+                              ${i === 0 ? (treat.type === 'massage' ? 'bg-rose-500 text-white' : 'bg-sky-600 text-white') : 'bg-slate-50 text-slate-400 border border-slate-100'}`}>
+                              <span className="text-[6px] font-black uppercase tracking-tighter leading-none opacity-80">{treat.type === 'massage' ? 'M#' : 'S#'}</span>
+                              <span className="text-md font-black leading-none mt-0.5">{treat.sessionNumber || (unifiedSessions.length - i)}</span>
                             </div>
                             <div>
-                              <h4 className="text-lg font-black text-slate-900 tracking-tight capitalize">
-                                {format(new Date(treat.date), "EEEE d 'de' MMMM", { locale: es })}
-                              </h4>
+                              <div className="flex items-center gap-2">
+                                <h4 className="text-lg font-black text-slate-900 tracking-tight capitalize">
+                                  {format(new Date(treat.date), "EEEE d 'de' MMMM", { locale: es })}
+                                </h4>
+                                {treat.type === 'massage' && (
+                                  <Badge className="bg-rose-50 text-rose-600 border-rose-100 font-bold text-[8px] px-1.5 py-0">MASAJE</Badge>
+                                )}
+                              </div>
                               <div className="flex items-center gap-2 mt-1">
                                 <span className="flex items-center gap-1 text-slate-400 text-[10px] font-bold">
                                   <Clock className="h-3 w-3" />
@@ -774,19 +834,19 @@ export default function MiCuentaPage() {
                         </div>
                       </CardHeader>
 
-                      <CardContent className="p-3 pt-0.5 space-y-3">
-                        <div className="grid grid-cols-1 xl:grid-cols-12 gap-3">
+                      <CardContent className="p-4 pt-1 space-y-4">
+                        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
                           {/* Content Column */}
-                          <div className="xl:col-span-5 space-y-3">
+                          <div className="lg:col-span-5 space-y-4">
                             <div className="space-y-2 group/info">
                               <div className="flex items-center gap-3">
                                 <div className="h-7 w-7 rounded-lg bg-slate-100 flex items-center justify-center text-slate-500 group-hover/info:bg-sky-50 group-hover/info:text-sky-600 transition-colors">
-                                  <Activity className="h-3.5 w-3.5" />
+                                  {treat.type === 'massage' ? <Sparkles className="h-3.5 w-3.5" /> : <Activity className="h-3.5 w-3.5" />}
                                 </div>
                                 <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Trabajo Realizado</p>
                               </div>
                               <p className="text-[12px] text-slate-700 leading-snug font-medium bg-slate-50/50 p-3 rounded-xl border border-slate-100 shadow-inner min-h-[60px]">
-                                {treat.sessionWork || "Registro de evolución en sesión clínica."}
+                                {treat.sessionWork || (treat.type === 'massage' ? "Registro de sesión de masoterapia." : "Registro de evolución en sesión clínica.")}
                               </p>
                             </div>
 
@@ -814,46 +874,92 @@ export default function MiCuentaPage() {
                           </div>
 
                           {/* Map Column */}
-                          <div className="xl:col-span-7">
-                            <div className="relative h-full bg-slate-50/20 rounded-lg border border-slate-100 p-1.5 hover:bg-slate-50/40 transition-colors duration-500 max-w-sm mx-auto xl:mx-0">
-                              <div className="flex items-center justify-between mb-1">
-                                <div className="flex items-center gap-2">
-                                  <div className="h-5 w-5 rounded bg-slate-900 flex items-center justify-center text-white">
-                                    <Target className="h-2.5 w-2.5" />
+                          <div className="lg:col-span-7">
+                            {!treat.showBodyMapToPatient ? (
+                              <div className="h-full min-h-[200px] flex items-center justify-center bg-slate-50/50 rounded-2xl border-2 border-dashed border-slate-100 p-6">
+                                <div className="text-center">
+                                  <div className="h-12 w-12 rounded-full bg-slate-100 flex items-center justify-center mx-auto mb-3">
+                                    <Activity className="h-6 w-6 text-slate-300" />
                                   </div>
-                                  <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Anatomía</p>
+                                  <p className="text-xs font-black text-slate-400 uppercase tracking-widest">Contenido Privado</p>
+                                  <p className="text-[10px] text-slate-400 mt-1 italic">El mapa corporal no está disponible para esta sesión.</p>
                                 </div>
-                                {treat.bodyZones?.length > 0 && (
-                                  <Badge className="bg-white text-slate-800 border border-slate-200 font-bold text-[7px] px-1.5 py-0 rounded-full">
-                                    {treat.bodyZones.length} ZONAS
-                                  </Badge>
+                              </div>
+                            ) : (
+                              <div className="relative h-full bg-slate-50/20 rounded-lg border border-slate-100 p-1.5 hover:bg-slate-50/40 transition-colors duration-500 max-w-sm mx-auto xl:mx-0">
+                                <div className="flex items-center justify-between mb-1">
+                                  <div className="flex items-center gap-2">
+                                    <div className={`h-5 w-5 rounded flex items-center justify-center text-white shadow-sm ${treat.type === 'massage' ? 'bg-rose-500' : 'bg-slate-900'}`}>
+                                      <Target className="h-2.5 w-2.5" />
+                                    </div>
+                                    <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Anatomía</p>
+                                  </div>
+                                  {treat.bodyZones?.length > 0 && (
+                                    <Badge className="bg-white text-slate-800 border border-slate-200 font-bold text-[7px] px-1.5 py-0 rounded-full">
+                                      {treat.bodyZones.length} ZONAS
+                                    </Badge>
+                                  )}
+                                </div>
+
+                                {treat.bodyZones && treat.bodyZones.length > 0 ? (
+                                  <div className="bg-white rounded-[2rem] border border-slate-200 shadow-sm overflow-hidden h-[600px] relative flex items-center justify-center">
+                                    <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_50%,rgba(14,165,233,0.03)_0%,transparent_70%)] pointer-events-none" />
+                                    <div className="w-[800px] h-[800px] scale-[0.7] flex items-center justify-center origin-center shrink-0">
+                                      <BodyMap zones={treat.bodyZones} onZonesChange={() => { }} readOnly isPatient color={treat.type === 'massage' ? '#f43f5e' : '#0ea5e9'} />
+                                    </div>
+                                  </div>
+                                ) : (
+                                  <div className="h-[600px] flex items-center justify-center bg-white/50 rounded-[2rem] border-2 border-dashed border-slate-100">
+                                    <div className="text-center">
+                                      <Activity className="h-8 w-8 mx-auto text-slate-200 mb-3" />
+                                      <p className="text-[11px] text-slate-400 font-bold uppercase tracking-widest">Anatomía no registrada</p>
+                                    </div>
+                                  </div>
+                                )}
+
+                                <div className="mt-3 flex flex-wrap gap-1.5">
+                                  {treat.bodyZones?.map((zone: any) => (
+                                    <Badge key={zone.id} className={`${treat.type === 'massage' ? 'bg-rose-50 text-rose-600 border-rose-100' : 'bg-sky-50/80 text-sky-700 border-sky-100/50 hover:bg-sky-100'} font-black text-[8px] px-2 py-0.5 uppercase tracking-tighter`}>
+                                      {translateZone(zone.name || zone.zone)}
+                                    </Badge>
+                                  ))}
+                                </div>
+
+                                {/* Notas por Zona (Detalles internos de bodyZones) */}
+                                {treat.bodyZones?.some((z: any) => z.notes || z.treatment) && (
+                                  <div className="mt-4 space-y-2 border-t border-slate-100 pt-3">
+                                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest px-1">Detalles de Evolución</p>
+                                    <div className="grid grid-cols-1 gap-2">
+                                      {treat.bodyZones.filter((z: any) => z.notes || z.treatment).map((zone: any, zIdx: number) => (
+                                        <div
+                                          key={zIdx}
+                                          className={cn(
+                                            "p-2.5 rounded-lg border shadow-sm transition-all duration-300",
+                                            treat.type === 'massage' ? "bg-rose-50/30 border-rose-100" : "bg-sky-50/30 border-sky-100"
+                                          )}
+                                        >
+                                          <div className="flex items-center gap-2 mb-1.5">
+                                            <div className={cn("w-2 h-2 rounded-full", treat.type === 'massage' ? "bg-rose-500" : "bg-sky-500")} />
+                                            <span className="text-[10px] font-black text-slate-800 uppercase tracking-tight">{translateZone(zone.name || zone.zone)}</span>
+                                            {zone.intensity && (
+                                              <Badge variant="outline" className="ml-auto text-[8px] font-bold bg-white/80 border-slate-200 text-slate-600 px-1 py-0 pointer-events-none">
+                                                Int: {zone.intensity}
+                                              </Badge>
+                                            )}
+                                          </div>
+                                          {zone.treatment && (
+                                            <p className="text-[11px] font-bold text-slate-800 mb-0.5 leading-tight">{zone.treatment}</p>
+                                          )}
+                                          {zone.notes && (
+                                            <p className="text-[11px] italic text-slate-500 leading-relaxed font-medium">"{zone.notes}"</p>
+                                          )}
+                                        </div>
+                                      ))}
+                                    </div>
+                                  </div>
                                 )}
                               </div>
-
-                              {treat.bodyZones && treat.bodyZones.length > 0 ? (
-                                <div className="bg-white rounded border border-slate-200 shadow-sm overflow-hidden h-[350px] relative flex items-center justify-center">
-                                  <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_50%,rgba(14,165,233,0.01)_0%,transparent_70%)] pointer-events-none" />
-                                  <div className="w-[800px] h-[800px] scale-[0.42] flex items-center justify-center origin-center shrink-0">
-                                    <BodyMap zones={treat.bodyZones} onZonesChange={() => { }} readOnly isPatient />
-                                  </div>
-                                </div>
-                              ) : (
-                                <div className="h-[350px] flex items-center justify-center bg-white/50 rounded border-2 border-dashed border-slate-100">
-                                  <div className="text-center">
-                                    <Activity className="h-5 w-5 mx-auto text-slate-200 mb-1" />
-                                    <p className="text-[8px] text-slate-400 font-bold italic">No disponible</p>
-                                  </div>
-                                </div>
-                              )}
-
-                              <div className="mt-3 flex flex-wrap gap-1.5">
-                                {treat.bodyZones?.map((zone: any) => (
-                                  <Badge key={zone.id} className="bg-sky-50/80 text-sky-700 border-sky-100/50 hover:bg-sky-100 font-black text-[8px] px-2 py-0.5 uppercase tracking-tighter">
-                                    {translateZone(zone.name || zone.zone)}
-                                  </Badge>
-                                ))}
-                              </div>
-                            </div>
+                            )}
                           </div>
                         </div>
 
@@ -871,7 +977,7 @@ export default function MiCuentaPage() {
                                   <div className="absolute -right-6 -top-6 h-16 w-16 bg-emerald-50 rounded-full opacity-0 group-hover/note:opacity-100 transition-opacity" />
                                   <div className="flex flex-wrap gap-2 mb-4">
                                     {note.zoneIds.map((zid: string) => (
-                                      <Badge key={zid} variant="outline" className="text-[10px] font-black uppercase tracking-tighter px-3 h-6 bg-slate-50/50 border-slate-100 text-slate-500 group-hover/note:bg-emerald-50 group-hover/note:border-emerald-100 group-hover/note:text-emerald-700 transition-colors">
+                                      <Badge key={zid} variant="outline" className={`text-[10px] font-black uppercase tracking-tighter px-3 h-6 bg-slate-50/50 border-slate-100 text-slate-500 group-hover/note:bg-${treat.type === 'massage' ? 'rose' : 'emerald'}-50 group-hover/note:border-${treat.type === 'massage' ? 'rose' : 'emerald'}-100 group-hover/note:text-${treat.type === 'massage' ? 'rose' : 'emerald'}-700 transition-colors`}>
                                         {translateZone(zid)}
                                       </Badge>
                                     ))}
@@ -882,7 +988,7 @@ export default function MiCuentaPage() {
                                     <div className="mt-4 flex items-center gap-2">
                                       <span className="text-[9px] font-black text-slate-300 uppercase">Intensidad</span>
                                       <div className="flex-1 h-1 bg-slate-100 rounded-full overflow-hidden">
-                                        <div className="h-full bg-emerald-500 rounded-full" style={{ width: `${(nIdx + 1) * 20}%` }} />
+                                        <div className={`h-full bg-${treat.type === 'massage' ? 'rose' : 'emerald'}-500 rounded-full`} style={{ width: `${(nIdx + 1) * 20}%` }} />
                                       </div>
                                     </div>
                                   )}
@@ -1540,38 +1646,85 @@ export default function MiCuentaPage() {
                       </div>
                     </CardHeader>
                     <CardContent className="p-5 pt-2">
-                      <div className="grid grid-cols-1 lg:grid-cols-12 gap-12">
-                        <div className="lg:col-span-12 space-y-10">
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                      <div className="grid grid-cols-1 xl:grid-cols-12 gap-8 items-start">
+                        {/* Details Column */}
+                        <div className="xl:col-span-7 space-y-8">
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                             {session.sessionWork && (
-                              <div className="p-8 bg-slate-50 rounded-[2.5rem] border border-slate-100">
-                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-4">Trabajo de la Sesión</p>
-                                <p className="text-slate-700 text-[15px] leading-relaxed font-medium">{session.sessionWork}</p>
+                              <div className="p-6 bg-slate-50 rounded-2xl border border-slate-100 shadow-sm group/card hover:bg-slate-100/50 transition-colors duration-500">
+                                <div className="flex items-center gap-2 mb-3">
+                                  <div className="h-5 w-5 rounded bg-rose-500 text-white flex items-center justify-center">
+                                    <Activity className="h-3 w-3" />
+                                  </div>
+                                  <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Trabajo de Sesión</p>
+                                </div>
+                                <p className="text-slate-700 text-sm leading-relaxed font-medium">{session.sessionWork}</p>
                               </div>
                             )}
-                            {session.comments && (
-                              <div className="p-8 bg-rose-50/30 rounded-[2.5rem] border border-rose-100/50">
-                                <p className="text-[10px] font-black text-rose-500 uppercase tracking-[0.2em] mb-4">Insights del Terapeuta</p>
-                                <p className="text-slate-600 text-[15px] italic leading-relaxed font-medium">"{session.comments}"</p>
+                            {(session.comments || session.indication) && (
+                              <div className="p-6 bg-rose-50/30 rounded-2xl border border-rose-100/50 group/card hover:bg-rose-50/50 transition-colors duration-500">
+                                <div className="flex items-center gap-2 mb-3">
+                                  <div className="h-5 w-5 rounded bg-amber-500 text-white flex items-center justify-center">
+                                    <Sparkles className="h-3 w-3" />
+                                  </div>
+                                  <p className="text-[9px] font-black text-rose-500 uppercase tracking-widest">Recomendaciones</p>
+                                </div>
+                                <p className="text-slate-600 text-sm italic leading-relaxed font-medium">"{session.comments || session.indication}"</p>
                               </div>
                             )}
                           </div>
 
                           {session.zoneNotes && session.zoneNotes.length > 0 && (
-                            <div className="space-y-6">
-                              <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] ml-2">Foco por Áreas Musculares</p>
-                              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                            <div className="space-y-4">
+                              <div className="flex items-center gap-2 ml-1">
+                                <div className="h-1.5 w-1.5 rounded-full bg-rose-500"></div>
+                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Análisis por Área</p>
+                              </div>
+                              <div className="grid grid-cols-1 gap-3">
                                 {session.zoneNotes.map((note: any, idx: number) => (
-                                  <div key={idx} className="p-6 bg-white rounded-[2rem] border border-slate-100 shadow-sm hover:shadow-md transition-shadow">
-                                    <div className="flex flex-wrap gap-2 mb-4">
+                                  <div key={idx} className="p-4 bg-white rounded-xl border border-slate-100 shadow-sm flex items-start gap-4">
+                                    <div className="flex flex-wrap gap-1.5 shrink-0 max-w-[150px]">
                                       {note.zoneIds?.map((zid: string) => (
-                                        <Badge key={zid} variant="outline" className="text-[9px] font-black bg-slate-50 border-slate-200 text-slate-500 uppercase px-3 py-1 rounded-full">
+                                        <Badge key={zid} variant="outline" className="text-[8px] font-black bg-slate-50 border-slate-200 text-slate-500 uppercase px-2 py-0.5 rounded-md">
                                           {zid.replace('_', ' ')}
                                         </Badge>
                                       ))}
                                     </div>
-                                    <p className="text-sm font-medium text-slate-600 line-clamp-3 leading-relaxed italic">"{note.notes}"</p>
+                                    <p className="text-[11px] font-medium text-slate-500 leading-relaxed pt-1 flex-1">
+                                      <span className="text-rose-400 mr-1.5">★</span>{note.notes}
+                                    </p>
                                   </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Map Column */}
+                        <div className="xl:col-span-5">
+                          {!session.showBodyMapToPatient ? (
+                            <div className="h-full min-h-[400px] flex items-center justify-center bg-slate-50/50 rounded-2xl border-2 border-dashed border-slate-100 p-8">
+                              <div className="text-center max-w-[200px]">
+                                <div className="h-12 w-12 rounded-full bg-slate-100 flex items-center justify-center mx-auto mb-4">
+                                  <Activity className="h-6 w-6 text-slate-300" />
+                                </div>
+                                <p className="text-xs font-black text-slate-400 uppercase tracking-widest mb-1">Contenido Privado</p>
+                                <p className="text-[10px] text-slate-400 italic">Anatomía compartida solo con el profesional.</p>
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="space-y-4">
+                              <div className="relative bg-white rounded-2xl border border-slate-100 shadow-sm p-4 overflow-hidden min-h-[400px] flex items-center justify-center group/map">
+                                <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_50%,rgba(244,63,94,0.03)_0%,transparent_70%)] pointer-events-none" />
+                                <div className="w-[800px] h-[800px] scale-[0.5] flex items-center justify-center origin-center shrink-0 transition-transform duration-700 group-hover/map:scale-[0.52]">
+                                  <BodyMap zones={session.bodyZones} onZonesChange={() => { }} readOnly isPatient />
+                                </div>
+                              </div>
+                              <div className="flex flex-wrap justify-center gap-1.5">
+                                {session.bodyZones?.map((zone: any) => (
+                                  <Badge key={zone.id} className="bg-rose-50 text-rose-600 border-rose-100/50 hover:bg-rose-100 font-black text-[9px] px-2.5 py-1 rounded-full uppercase tracking-tight">
+                                    {translateZone(zone.name || zone.zone)}
+                                  </Badge>
                                 ))}
                               </div>
                             </div>
