@@ -23,7 +23,7 @@ import { ProgressChart } from "@/components/progreso/progress-chart"
 import { PatientLogForm } from "@/components/progreso/patient-log-form"
 import { PatientTaskList } from "@/components/progreso/patient-task-list"
 import { QuickDailyLog } from "@/components/progreso/quick-daily-log"
-import { loadLogs, addLog } from "@/lib/exercise-logs.storage"
+import { loadLogs, addLog, updateLog } from "@/lib/exercise-logs.storage"
 import type { ExerciseLog, RoutineDay, ExerciseItem } from "@/lib/types"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
@@ -37,7 +37,7 @@ export default function MiCuentaPage() {
   const [record, setRecord] = useState<any>(null)
   const [routineEntries, setRoutineEntries] = useState<any[]>([])
   const [exerciseLogs, setExerciseLogs] = useState<ExerciseLog[]>(loadLogs())
-  const [trackingModal, setTrackingModal] = useState<{ routineId: string, dayId: string, dayName: string, exercises: ExerciseItem[] } | null>(null)
+  const [trackingModal, setTrackingModal] = useState<{ routineId: string, dayId: string, dayName: string, exercises: ExerciseItem[], editLogId?: string } | null>(null)
   const [trackingForm, setTrackingForm] = useState<Record<string, { completed: boolean, weight: string, duration: string, notes: string }>>({})
   const [activeDayIndex, setActiveDayIndex] = useState<Record<string, number>>({})
 
@@ -184,22 +184,69 @@ export default function MiCuentaPage() {
     setTrackingModal({ routineId, dayId: day.id, dayName: day.name, exercises: day.exercises })
   }
 
+  const openTrackingForEdit = (log: ExerciseLog, routineId: string, day: RoutineDay) => {
+    const formValues: Record<string, { completed: boolean, weight: string, duration: string, notes: string }> = {}
+
+    // Initialize with existing log data
+    log.exercises.forEach(exLog => {
+      formValues[exLog.exerciseId] = {
+        completed: exLog.completed,
+        weight: exLog.weight || '',
+        duration: exLog.duration || '',
+        notes: exLog.notes || ''
+      }
+    })
+
+    // Also Initialize any new exercises that might have been added to the routine since the log was created
+    day.exercises.forEach(ex => {
+      if (!formValues[ex.id]) {
+        formValues[ex.id] = { completed: false, weight: '', duration: '', notes: '' }
+      }
+    })
+
+    setTrackingForm(formValues)
+    setTrackingModal({
+      routineId,
+      dayId: day.id,
+      dayName: day.name,
+      exercises: day.exercises,
+      editLogId: log.id // Set the ID to enable edit mode
+    })
+  }
+
   const submitTracking = () => {
     if (!trackingModal) return
-    const log: ExerciseLog = {
-      id: Date.now().toString() + Math.random().toString(36).slice(2, 5),
-      routineId: trackingModal.routineId,
-      dayId: trackingModal.dayId,
-      date: new Date().toISOString(),
-      exercises: trackingModal.exercises.map(ex => ({
-        exerciseId: ex.id,
-        completed: trackingForm[ex.id]?.completed || false,
-        weight: trackingForm[ex.id]?.weight || '',
-        duration: trackingForm[ex.id]?.duration || '',
-        notes: trackingForm[ex.id]?.notes || ''
-      }))
+
+    const exerciseData = trackingModal.exercises.map(ex => ({
+      exerciseId: ex.id,
+      completed: trackingForm[ex.id]?.completed || false,
+      weight: trackingForm[ex.id]?.weight || '',
+      duration: trackingForm[ex.id]?.duration || '',
+      notes: trackingForm[ex.id]?.notes || ''
+    }))
+
+    if (trackingModal.editLogId) {
+      // Update existing log
+      const updatedLog: ExerciseLog = {
+        id: trackingModal.editLogId,
+        routineId: trackingModal.routineId,
+        dayId: trackingModal.dayId,
+        date: exerciseLogs.find(l => l.id === trackingModal.editLogId)?.date || new Date().toISOString(), // Keep original date
+        exercises: exerciseData
+      }
+      updateLog(updatedLog)
+    } else {
+      // Create new log
+      const newLog: ExerciseLog = {
+        id: Date.now().toString() + Math.random().toString(36).slice(2, 5),
+        routineId: trackingModal.routineId,
+        dayId: trackingModal.dayId,
+        date: new Date().toISOString(),
+        exercises: exerciseData
+      }
+      addLog(newLog)
     }
-    addLog(log)
+
     setExerciseLogs(loadLogs())
     setTrackingModal(null)
   }
@@ -1092,10 +1139,17 @@ export default function MiCuentaPage() {
                                           <History className="h-3 w-3" /> Mis Sesiones ({dayLogs.length})
                                         </p>
                                         {dayLogs.slice(0, 3).map((log: ExerciseLog) => (
-                                          <div key={log.id} className="flex items-center gap-2 bg-white rounded-lg p-2 border border-emerald-100 text-xs">
-                                            <CheckCircle className="h-3.5 w-3.5 text-emerald-500 shrink-0" />
+                                          <div
+                                            key={log.id}
+                                            onClick={() => openTrackingForEdit(log, routine.id, currentDay)}
+                                            className="flex items-center gap-2 bg-white rounded-lg p-2 border border-emerald-100 text-xs cursor-pointer hover:bg-emerald-50/50 hover:border-emerald-200 transition-all group/log"
+                                          >
+                                            <CheckCircle className="h-3.5 w-3.5 text-emerald-500 shrink-0 group-hover/log:scale-110 transition-transform" />
                                             <span className="font-semibold text-slate-700">{format(new Date(log.date), "dd/MM/yyyy HH:mm")}</span>
-                                            <span className="text-slate-400">— {log.exercises.filter(e => e.completed).length}/{log.exercises.length} completados</span>
+                                            <span className="text-slate-400 group-hover/log:text-emerald-600 transition-colors">— {log.exercises.filter(e => e.completed).length}/{log.exercises.length} completados</span>
+                                            <div className="ml-auto opacity-0 group-hover/log:opacity-100 transition-opacity">
+                                              <span className="text-[9px] font-bold text-emerald-600 uppercase bg-emerald-100 px-1.5 py-0.5 rounded">Editar</span>
+                                            </div>
                                           </div>
                                         ))}
                                         {dayLogs.length > 3 && (
@@ -1186,7 +1240,7 @@ export default function MiCuentaPage() {
                   <DialogHeader>
                     <DialogTitle className="text-lg font-black flex items-center gap-2">
                       <Clipboard className="h-5 w-5 text-emerald-600" />
-                      Registrar Sesion — {trackingModal.dayName}
+                      {trackingModal.editLogId ? 'Editar Sesión' : 'Registrar Sesión'} — {trackingModal.dayName}
                     </DialogTitle>
                   </DialogHeader>
                   <div className="space-y-4 mt-2">
@@ -1245,7 +1299,7 @@ export default function MiCuentaPage() {
                       className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold shadow-lg shadow-emerald-600/20"
                     >
                       <CheckCircle className="h-4 w-4 mr-2" />
-                      Guardar Sesion
+                      {trackingModal.editLogId ? 'Guardar Cambios' : 'Guardar Sesión'}
                     </Button>
                   </div>
                 </DialogContent>

@@ -37,3 +37,12 @@ export function deleteLog(logId: string): void {
     const logs = loadLogs().filter(l => l.id !== logId)
     saveLogs(logs)
 }
+
+export function updateLog(updatedLog: ExerciseLog): void {
+    const logs = loadLogs()
+    const index = logs.findIndex(l => l.id === updatedLog.id)
+    if (index !== -1) {
+        logs[index] = updatedLog
+        saveLogs(logs)
+    }
+}
