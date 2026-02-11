@@ -63,6 +63,7 @@ import {
   Download,
   Copy,
   Layers,
+  LayoutGrid,
   History as HistoryIcon
 } from "lucide-react"
 import { supabase } from "@/lib/supabase-client"
@@ -77,6 +78,7 @@ import { ClinicalFormConfig, ClinicalFormType } from "@/lib/types"
 // Components (assuming these exist and are working)
 import { BodyMap } from "@/components/medical/body-map"
 import { AdherenceInput } from "@/components/medical/adherence-input"
+import { VideoUploadField } from "@/components/ui/video-upload-field"
 
 export default function PatientHistoryPage() {
   const { clientId } = useParams()
