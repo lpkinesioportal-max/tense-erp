@@ -218,9 +218,15 @@ export default function MiCuentaPage() {
         if (!exerciseList || !Array.isArray(exerciseList) || exerciseList.length === 0) {
           days = []
         } else if (exerciseList[0] && 'title' in exerciseList[0] && !('exercises' in exerciseList[0])) {
-          days = [{ id: 'day-1', name: 'Día 1', exercises: exerciseList }]
+          // Legacy flat format
+          days = [{ id: 'day-1', name: 'Día 1', exercises: exerciseList as ExerciseItem[], blocks: [] }]
         } else {
-          days = exerciseList as RoutineDay[]
+          // Standard format - Ensure blocks exists
+          days = (exerciseList as any[]).map(d => ({
+            ...d,
+            exercises: d.exercises || [],
+            blocks: d.blocks || []
+          })) as RoutineDay[]
         }
         return {
           id: entry.id,
@@ -1353,7 +1359,9 @@ export default function MiCuentaPage() {
                                     >
                                       <Layers className="h-3 w-3 inline mr-1" />
                                       {day.name}
-                                      <span className="ml-1 text-[9px] opacity-60">({day.exercises.length})</span>
+                                      <span className="ml-1 text-[9px] opacity-60">
+                                        ({day.exercises.length + (day.blocks?.reduce((acc, b) => acc + b.exercises.length, 0) || 0)})
+                                      </span>
                                     </button>
                                   ))}
                                 </div>
@@ -1361,52 +1369,81 @@ export default function MiCuentaPage() {
                                 {/* EXERCISES FOR CURRENT DAY */}
                                 {currentDay && (
                                   <div className="divide-y divide-slate-100/50">
-                                    {currentDay.exercises.map((ex: ExerciseItem, i: number) => (
-                                      <div key={ex.id} className="group/ex p-5 hover:bg-slate-50/80 transition-all duration-500">
-                                        <div className="flex items-center gap-4">
-                                          <div className="h-10 w-10 shrink-0 rounded-xl bg-white shadow-lg shadow-slate-200 flex items-center justify-center text-slate-900 text-sm font-black border border-slate-100 group-hover/ex:bg-indigo-600 group-hover/ex:text-white group-hover/ex:scale-110 transition-all duration-500">
-                                            {(i + 1).toString().padStart(2, "0")}
-                                          </div>
-                                          <div className="flex-1 min-w-0">
-                                            <h4 className="text-base font-black text-slate-900 tracking-tight group-hover/ex:text-indigo-600 transition-colors">{ex.title || `Ejercicio ${i + 1}`}</h4>
-                                            {ex.description && <p className="text-xs text-slate-500 mt-0.5 leading-relaxed">{ex.description}</p>}
-                                            {ex.notes && <p className="text-[10px] text-slate-400 mt-1 italic">{ex.notes}</p>}
-                                          </div>
-                                          {ex.setsReps && (
-                                            <div className="flex items-center gap-1.5 bg-indigo-50 text-indigo-700 px-3 py-1.5 rounded-lg text-xs font-bold border border-indigo-100 shrink-0">
-                                              <Repeat className="h-3 w-3" />
-                                              {ex.setsReps}
+                                    {(() => {
+                                      const renderExercise = (ex: ExerciseItem, i: number, blockTitle?: string) => (
+                                        <div key={ex.id} className="group/ex p-5 hover:bg-slate-50/80 transition-all duration-500 relative">
+                                          {blockTitle && (
+                                            <div className="absolute top-2 left-5">
+                                              <Badge variant="outline" className="text-[9px] px-1.5 py-0 h-4 border-slate-200 text-slate-400 font-bold uppercase tracking-wider">{blockTitle}</Badge>
                                             </div>
                                           )}
-                                        </div>
-                                        {ex.videoUrl && (() => {
-                                          const ytMatch = ex.videoUrl.match(/(?:youtube\.com\/(?:watch\?v=|embed\/|shorts\/)|youtu\.be\/)([a-zA-Z0-9_-]{11})/)
-                                          if (ytMatch) {
+                                          <div className="flex items-center gap-4">
+                                            <div className="h-10 w-10 shrink-0 rounded-xl bg-white shadow-lg shadow-slate-200 flex items-center justify-center text-slate-900 text-sm font-black border border-slate-100 group-hover/ex:bg-indigo-600 group-hover/ex:text-white group-hover/ex:scale-110 transition-all duration-500">
+                                              {(i + 1).toString().padStart(2, "0")}
+                                            </div>
+                                            <div className="flex-1 min-w-0">
+                                              <h4 className="text-base font-black text-slate-900 tracking-tight group-hover/ex:text-indigo-600 transition-colors">{ex.title || `Ejercicio ${i + 1}`}</h4>
+                                              {ex.description && <p className="text-xs text-slate-500 mt-0.5 leading-relaxed">{ex.description}</p>}
+                                              {ex.notes && <p className="text-[10px] text-slate-400 mt-1 italic">{ex.notes}</p>}
+                                            </div>
+                                            {ex.setsReps && (
+                                              <div className="flex items-center gap-1.5 bg-indigo-50 text-indigo-700 px-3 py-1.5 rounded-lg text-xs font-bold border border-indigo-100 shrink-0">
+                                                <Repeat className="h-3 w-3" />
+                                                {ex.setsReps}
+                                              </div>
+                                            )}
+                                          </div>
+                                          {ex.videoUrl && (() => {
+                                            const ytMatch = ex.videoUrl.match(/(?:youtube\.com\/(?:watch\?v=|embed\/|shorts\/)|youtu\.be\/)([a-zA-Z0-9_-]{11})/)
+                                            if (ytMatch) {
+                                              return (
+                                                <div className="mt-3 rounded-xl overflow-hidden shadow-md border border-slate-200 aspect-video">
+                                                  <iframe
+                                                    src={`https://www.youtube.com/embed/${ytMatch[1]}`}
+                                                    title={ex.title || 'Video del ejercicio'}
+                                                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                                                    allowFullScreen
+                                                    className="w-full h-full"
+                                                  />
+                                                </div>
+                                              )
+                                            }
                                             return (
-                                              <div className="mt-3 rounded-xl overflow-hidden shadow-md border border-slate-200 aspect-video">
-                                                <iframe
-                                                  src={`https://www.youtube.com/embed/${ytMatch[1]}`}
-                                                  title={ex.title || 'Video del ejercicio'}
-                                                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                                                  allowFullScreen
-                                                  className="w-full h-full"
+                                              <div className="mt-3 rounded-xl overflow-hidden shadow-md border border-slate-200">
+                                                <video
+                                                  src={ex.videoUrl}
+                                                  controls
+                                                  className="w-full max-h-[300px] object-contain bg-black"
+                                                  preload="metadata"
                                                 />
                                               </div>
                                             )
-                                          }
-                                          return (
-                                            <div className="mt-3 rounded-xl overflow-hidden shadow-md border border-slate-200">
-                                              <video
-                                                src={ex.videoUrl}
-                                                controls
-                                                className="w-full max-h-[300px] object-contain bg-black"
-                                                preload="metadata"
-                                              />
+                                          })()}
+                                        </div>
+                                      )
+
+                                      return (
+                                        <>
+                                          {/* Render Blocks */}
+                                          {currentDay.blocks?.map(block => (
+                                            <div key={block.id} className="relative">
+                                              {block.type === 'circuit' && (
+                                                <div className="bg-indigo-50/50 p-2 text-center border-y border-indigo-50">
+                                                  <p className="text-[10px] font-black text-indigo-400 uppercase tracking-widest">
+                                                    Circuito {block.title}
+                                                    {block.circuit?.rounds ? ` • ${block.circuit.rounds} Rounds` : ''}
+                                                  </p>
+                                                </div>
+                                              )}
+                                              {block.exercises.map((ex, i) => renderExercise(ex, i, block.type === 'standard' ? block.title : undefined))}
                                             </div>
-                                          )
-                                        })()}
-                                      </div>
-                                    ))}
+                                          ))}
+
+                                          {/* Render Legacy/Loose Exercises */}
+                                          {currentDay.exercises.map((ex, i) => renderExercise(ex, i, currentDay.blocks?.length ? 'Otros' : undefined))}
+                                        </>
+                                      )
+                                    })()}
                                   </div>
                                 )}
 
@@ -1883,7 +1920,9 @@ export default function MiCuentaPage() {
                                 >
                                   <Layers className="h-3 w-3 inline mr-1" />
                                   {day.name}
-                                  <span className="ml-1 text-[9px] opacity-60">({day.exercises.length})</span>
+                                  <span className="ml-1 text-[9px] opacity-60">
+                                    ({day.exercises.length + (day.blocks?.reduce((acc, b) => acc + b.exercises.length, 0) || 0)})
+                                  </span>
                                 </button>
                               ))}
                             </div>

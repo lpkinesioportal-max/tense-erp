@@ -132,22 +132,41 @@ export default function PatientHistoryPage() {
 
   // Helper to get the effective config (dynamic OR default)
   const getEffectiveConfig = (type: ClinicalFormType): Partial<ClinicalFormConfig> => {
-    // HARD OVERRIDE: Always use default to fix persistence/corruption issues
-    if (type === 'kinesiology_evaluation' || type === 'kine_home' || type === 'training_routine' || type === 'yoga_routine') {
-      return getDefaultFormConfig(type);
-    }
-
+    // Look for dynamic config from DataContext first
     const dynamicConfig = clinicalFormConfigs.find(c => c.formType === type && c.isActive)
 
     if (dynamicConfig && dynamicConfig.sections && dynamicConfig.sections.length > 0) {
       return dynamicConfig
     }
 
+    // Fallback to defaults
     return getDefaultFormConfig(type)
   }
 
-  // Flatten history items for the active category
-  const activeCategoryConfig = SERVICE_CATEGORIES.find(c => c.id === activeCategory)
+  // Combine static categories with dynamic configs to support new form types
+  const effectiveCategories = useMemo(() => {
+    // Copy base categories
+    const baseCategories = [...SERVICE_CATEGORIES];
+
+    // Find custom configs that don't belong to a standard type OR are active but not in types list
+    clinicalFormConfigs.filter(c => c.isActive).forEach(config => {
+      // Find which category this config belongs to (if any)
+      const typeInfo = FORM_TYPES_INFO.find(t => t.value === config.formType);
+      const categoryId = typeInfo?.category || "Evolución"; // Default to Evolución if unknown
+
+      const catIdx = baseCategories.findIndex(c => c.id === categoryId);
+      if (catIdx !== -1) {
+        if (!baseCategories[catIdx].types.includes(config.formType)) {
+          baseCategories[catIdx].types.push(config.formType);
+        }
+      }
+    });
+
+    return baseCategories;
+  }, [clinicalFormConfigs]);
+
+  // Use the transformed categories instead of the static ones
+  const activeCategoryConfig = effectiveCategories.find(c => c.id === activeCategory)
 
   const relevantHistoryItems = useMemo(() => {
     if (!activeCategoryConfig) return []
@@ -236,7 +255,7 @@ export default function PatientHistoryPage() {
           <div className="p-4">
             <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3 px-2">Departamentos</h3>
             <nav className="space-y-1">
-              {SERVICE_CATEGORIES.map(category => {
+              {effectiveCategories.map(category => {
                 const Icon = category.icon
                 const isActive = activeCategory === category.id
                 return (
@@ -270,7 +289,13 @@ export default function PatientHistoryPage() {
             ) : (
               activeCategoryConfig?.types.map(type => {
                 const items = itemsByType[type] || []
-                const typeInfo = FORM_TYPES_INFO.find(t => t.value === type)
+                // Combine default types info with potential dynamic types
+                const typeInfo = FORM_TYPES_INFO.find(t => t.value === type) || {
+                  value: type,
+                  label: type.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()),
+                  icon: FileText,
+                  color: "bg-slate-500"
+                }
                 const config = getEffectiveConfig(type as ClinicalFormType);
 
                 if (!typeInfo) return null
@@ -379,8 +404,12 @@ export default function PatientHistoryPage() {
             // TYPE SELECTION
             <div className="p-6 grid grid-cols-1 sm:grid-cols-2 gap-4 overflow-y-auto">
               {activeCategoryConfig?.types.map(type => {
-                const info = FORM_TYPES_INFO.find(t => t.value === type)
-                if (!info) return null
+                const info = FORM_TYPES_INFO.find(t => t.value === type) || {
+                  value: type,
+                  label: type.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()),
+                  icon: FileText,
+                  color: "bg-slate-500"
+                }
                 return (
                   <button
                     key={type}
@@ -536,7 +565,7 @@ function DynamicEntryForm({
               <div className="xl:col-span-7 space-y-2">
                 {/* Session Data Sections */}
                 {sections.map(section => {
-                  const fields = rawFields.filter(f => f.section === section.id && f.isActive !== false).sort((a, b) => a.order - b.order)
+                  const fields = rawFields.filter(f => (f.section === section.id || f.section === section.key) && f.isActive !== false).sort((a, b) => a.order - b.order)
                   if (fields.length === 0) return null
                   return (
                     <Card key={section.id} className="border-none shadow-sm ring-1 ring-slate-200 bg-white h-fit">
@@ -618,8 +647,8 @@ function DynamicEntryForm({
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 w-full">
               {/* Col 1: Clinical */}
               <div className="space-y-6">
-                {sections.filter(s => s.id === 'clinical').map(section => {
-                  const fields = rawFields.filter(f => f.section === section.id && f.isActive !== false).sort((a, b) => a.order - b.order)
+                {sections.filter(s => (s.id === 'clinical' || s.key === 'clinical')).map(section => {
+                  const fields = rawFields.filter(f => (f.section === section.id || f.section === section.key) && f.isActive !== false).sort((a, b) => a.order - b.order)
                   return (
                     <Card key={section.id} className="border-none shadow-sm ring-1 ring-slate-200 bg-white h-fit">
                       <CardHeader className="py-3 px-4 border-b bg-slate-50/30">
@@ -660,7 +689,7 @@ function DynamicEntryForm({
                     <CardTitle className="text-xs font-bold text-slate-500 uppercase tracking-widest">Neuro / Sueño</CardTitle>
                   </CardHeader>
                   <CardContent className="p-5 space-y-4">
-                    {rawFields.filter(f => f.section === 'neurological' && f.isActive !== false).map(field => (
+                    {rawFields.filter(f => (f.section === 'neurological' || f.key === 'neurological') && f.isActive !== false).map(field => (
                       <div key={field.id} className="space-y-1.5">
                         <Label className="text-xs font-semibold text-slate-500 uppercase">{field.label}</Label>
                         <RenderFieldInput field={field} value={values[field.key]} onChange={(val: any) => setValues(p => ({ ...p, [field.key]: val }))} serviceType={serviceType} />
@@ -668,13 +697,13 @@ function DynamicEntryForm({
                     ))}
                   </CardContent>
                 </Card>
-                {sections.filter(s => s.id === 'diagnosis').map(section => (
+                {sections.filter(s => (s.id === 'diagnosis' || s.key === 'diagnosis')).map(section => (
                   <Card key={section.id} className="border-none shadow-sm ring-1 ring-slate-200 bg-white shadow-sm">
                     <CardHeader className="py-3 px-4 border-b bg-slate-50/30">
                       <CardTitle className="text-xs font-bold text-slate-500 uppercase tracking-widest">{section.title}</CardTitle>
                     </CardHeader>
                     <CardContent className="p-5 space-y-4">
-                      {rawFields.filter(f => f.section === section.id && f.isActive !== false).map(field => (
+                      {rawFields.filter(f => (f.section === section.id || f.section === section.key) && f.isActive !== false).map(field => (
                         <div key={field.id} className="space-y-1.5">
                           <Label className="text-xs font-semibold text-slate-500 uppercase">{field.label}</Label>
                           <RenderFieldInput field={field} value={values[field.key]} onChange={(val: any) => setValues(p => ({ ...p, [field.key]: val }))} serviceType={serviceType} />
@@ -689,7 +718,7 @@ function DynamicEntryForm({
             /* GENERIC DYNAMIC Layout - For all other form types (kine_home, nutrition, yoga, etc.) */
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 w-full">
               {sections.map(section => {
-                const fields = rawFields.filter(f => f.section === section.id && f.isActive !== false).sort((a, b) => a.order - b.order)
+                const fields = rawFields.filter(f => (f.section === section.id || f.section === section.key) && f.isActive !== false).sort((a, b) => a.order - b.order)
                 if (fields.length === 0) return null
                 return (
                   <Card key={section.id} className="border-none shadow-sm ring-1 ring-slate-200 bg-white h-fit">
@@ -1395,12 +1424,11 @@ function FichaDisplay({ item, config, typeInfo, allEntries, onEdit, onDeleteLog 
         {/* Body - Show ALL sections and ALL fields */}
         <div className="p-4 space-y-4 flex-1 max-h-[400px] overflow-y-auto">
           {sections.map(section => {
-            const sectionFields = allFields.filter(f => f.section === section.id)
+            const sectionFields = allFields.filter(f => (f.section === section.id || f.section === section.key))
             const fieldsWithData = sectionFields.filter(f =>
               f.key !== 'month' &&
               f.key !== 'isVisible' &&
               item[f.key] !== undefined &&
-              item[f.key] !== null &&
               item[f.key] !== ''
             )
 

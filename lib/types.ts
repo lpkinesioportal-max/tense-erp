@@ -408,8 +408,10 @@ export interface FormSectionConfig {
   id: string
   key: string
   title: string
+  description?: string
   order: number
   isActive: boolean
+  isCollapsible?: boolean
 }
 
 export interface FormFieldConfig {
@@ -427,6 +429,7 @@ export interface FormFieldConfig {
   max?: number
   defaultValue?: any
   placeholder?: string
+  helpText?: string
 }
 
 export type ClinicalFormType =
@@ -449,6 +452,7 @@ export interface ClinicalFormConfig {
   name: string
   description: string
   formType: ClinicalFormType
+  category?: string
   sections: FormSectionConfig[]
   fields: FormFieldConfig[]
   isActive: boolean
