@@ -466,6 +466,14 @@ function DynamicEntryForm({
   initialProfessionalName: string,
   initialValues?: Record<string, any> // New prop
 }) {
+  // Determine Service Type for Templates
+  const serviceType = useMemo(() => {
+    if (type === 'yoga_routine') return 'yoga'
+    if (type === 'training_routine') return 'training'
+    if (type === 'kine_home' || type === 'kinesiology_treatment' || type === 'kinesiology_evaluation') return 'kinesiology'
+    return 'general'
+  }, [type])
+
   const [values, setValues] = useState<Record<string, any>>({
     sessionNumber: initialSessionNumber,
     professionalName: initialProfessionalName,
@@ -546,7 +554,7 @@ function DynamicEntryForm({
                               <Label className="text-[9px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1">
                                 {field.label} {field.required && <span className="text-red-500 font-bold">*</span>}
                               </Label>
-                              <RenderFieldInput field={field} value={values[field.key]} onChange={(val: any) => setValues(p => ({ ...p, [field.key]: val }))} />
+                              <RenderFieldInput field={field} value={values[field.key]} onChange={(val: any) => setValues(p => ({ ...p, [field.key]: val }))} serviceType={serviceType} />
                             </div>
                           ))}
                         </div>
@@ -619,7 +627,7 @@ function DynamicEntryForm({
                         {fields.map(field => (
                           <div key={field.id} className="space-y-1.5">
                             <Label className="text-xs font-semibold text-slate-500 uppercase">{field.label}</Label>
-                            <RenderFieldInput field={field} value={values[field.key]} onChange={(val: any) => setValues(p => ({ ...p, [field.key]: val }))} />
+                            <RenderFieldInput field={field} value={values[field.key]} onChange={(val: any) => setValues(p => ({ ...p, [field.key]: val }))} serviceType={serviceType} />
                           </div>
                         ))}
                       </CardContent>
@@ -637,7 +645,7 @@ function DynamicEntryForm({
                     {rawFields.filter(f => (f.section === 'digestive' || f.section === 'gynecological') && f.isActive !== false).map(field => (
                       <div key={field.id} className="flex items-center justify-between py-2 border-b border-slate-50 last:border-0 hover:bg-slate-50 px-1 rounded transition-colors">
                         <Label className="text-sm font-medium text-slate-700">{field.label}</Label>
-                        <RenderFieldInput field={field} value={values[field.key]} onChange={(val: any) => setValues(p => ({ ...p, [field.key]: val }))} />
+                        <RenderFieldInput field={field} value={values[field.key]} onChange={(val: any) => setValues(p => ({ ...p, [field.key]: val }))} serviceType={serviceType} />
                       </div>
                     ))}
                   </CardContent>
@@ -653,7 +661,7 @@ function DynamicEntryForm({
                     {rawFields.filter(f => f.section === 'neurological' && f.isActive !== false).map(field => (
                       <div key={field.id} className="space-y-1.5">
                         <Label className="text-xs font-semibold text-slate-500 uppercase">{field.label}</Label>
-                        <RenderFieldInput field={field} value={values[field.key]} onChange={(val: any) => setValues(p => ({ ...p, [field.key]: val }))} />
+                        <RenderFieldInput field={field} value={values[field.key]} onChange={(val: any) => setValues(p => ({ ...p, [field.key]: val }))} serviceType={serviceType} />
                       </div>
                     ))}
                   </CardContent>
@@ -667,7 +675,7 @@ function DynamicEntryForm({
                       {rawFields.filter(f => f.section === section.id && f.isActive !== false).map(field => (
                         <div key={field.id} className="space-y-1.5">
                           <Label className="text-xs font-semibold text-slate-500 uppercase">{field.label}</Label>
-                          <RenderFieldInput field={field} value={values[field.key]} onChange={(val: any) => setValues(p => ({ ...p, [field.key]: val }))} />
+                          <RenderFieldInput field={field} value={values[field.key]} onChange={(val: any) => setValues(p => ({ ...p, [field.key]: val }))} serviceType={serviceType} />
                         </div>
                       ))}
                     </CardContent>
@@ -690,7 +698,7 @@ function DynamicEntryForm({
                       {fields.map(field => (
                         <div key={field.id} className="space-y-1.5">
                           <Label className="text-xs font-semibold text-slate-500 uppercase">{field.label} {field.required && <span className="text-red-500">*</span>}</Label>
-                          <RenderFieldInput field={field} value={values[field.key]} onChange={(val: any) => setValues(p => ({ ...p, [field.key]: val }))} />
+                          <RenderFieldInput field={field} value={values[field.key]} onChange={(val: any) => setValues(p => ({ ...p, [field.key]: val }))} serviceType={serviceType} />
                         </div>
                       ))}
                     </CardContent>
@@ -790,20 +798,38 @@ function VideoUploadField({ value, onChange }: { value: string, onChange: (val: 
 
 // ExerciseItem and RoutineDay imported from @/lib/types
 
-function ExerciseListEditor({ value, onChange }: { value: ExerciseItem[], onChange: (val: ExerciseItem[]) => void }) {
+function ExerciseListEditor({ value, onChange, serviceType = 'general' }: { value: ExerciseItem[], onChange: (val: ExerciseItem[]) => void, serviceType?: string }) {
   const exercises: ExerciseItem[] = Array.isArray(value) ? value : []
   const [showTemplateMenu, setShowTemplateMenu] = useState(false)
   const [showSaveDialog, setShowSaveDialog] = useState(false)
   const [templateName, setTemplateName] = useState('')
   const [savedTemplates, setSavedTemplates] = useState<{ id: string, name: string, createdAt: string, exercises: ExerciseItem[] }[]>([])
 
-  // Load saved templates from localStorage
+  // Load saved templates from Supabase
   useEffect(() => {
-    try {
-      const stored = localStorage.getItem('routine_templates')
-      if (stored) setSavedTemplates(JSON.parse(stored))
-    } catch { /* ignore */ }
-  }, [])
+    const fetchTemplates = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('routine_templates')
+          .select('*')
+          .eq('service_type', serviceType)
+          .order('created_at', { ascending: false })
+
+        if (error) throw error
+        if (data) {
+          setSavedTemplates(data.map(t => ({
+            id: t.id,
+            name: t.name,
+            createdAt: t.created_at, // Map DB column to state property
+            exercises: t.exercises as any
+          })))
+        }
+      } catch (err) {
+        console.error('Error fetching templates:', err)
+      }
+    }
+    fetchTemplates()
+  }, [serviceType])
 
   const addExercise = () => {
     onChange([...exercises, {
@@ -826,24 +852,34 @@ function ExerciseListEditor({ value, onChange }: { value: ExerciseItem[], onChan
     onChange(exercises.filter((_, i) => i !== index))
   }
 
-  const saveAsTemplate = () => {
+  const saveAsTemplate = async () => {
     if (!templateName.trim()) return
     if (exercises.length === 0) {
       toast.error('Agregá al menos un ejercicio antes de guardar la plantilla')
       return
     }
-    const newTemplate = {
-      id: Date.now().toString(),
-      name: templateName.trim(),
-      createdAt: new Date().toISOString(),
-      exercises: exercises.map(ex => ({ ...ex })) // Deep copy
+    try {
+      const { data, error } = await supabase.from('routine_templates').insert({
+        name: templateName.trim(),
+        exercises: exercises,
+        service_type: serviceType
+      }).select().single()
+
+      if (error) throw error
+
+      setSavedTemplates(prev => [{
+        id: data.id,
+        name: data.name,
+        createdAt: data.created_at,
+        exercises: data.exercises as any
+      }, ...prev])
+      setTemplateName('')
+      setShowSaveDialog(false)
+      toast.success(`Plantilla "${data.name}" guardada`)
+    } catch (err) {
+      console.error('Error saving template:', err)
+      toast.error('Error al guardar la plantilla')
     }
-    const updated = [...savedTemplates, newTemplate]
-    setSavedTemplates(updated)
-    localStorage.setItem('routine_templates', JSON.stringify(updated))
-    setTemplateName('')
-    setShowSaveDialog(false)
-    toast.success(`Plantilla "${newTemplate.name}" guardada`)
   }
 
   const loadTemplate = (template: typeof savedTemplates[0]) => {
@@ -857,11 +893,16 @@ function ExerciseListEditor({ value, onChange }: { value: ExerciseItem[], onChan
     toast.success(`Plantilla "${template.name}" cargada — podés modificar los ejercicios`)
   }
 
-  const deleteTemplate = (templateId: string) => {
-    const updated = savedTemplates.filter(t => t.id !== templateId)
-    setSavedTemplates(updated)
-    localStorage.setItem('routine_templates', JSON.stringify(updated))
-    toast.success('Plantilla eliminada')
+  const deleteTemplate = async (templateId: string) => {
+    try {
+      const { error } = await supabase.from('routine_templates').delete().eq('id', templateId)
+      if (error) throw error
+      setSavedTemplates(prev => prev.filter(t => t.id !== templateId))
+      toast.success('Plantilla eliminada')
+    } catch (err) {
+      console.error('Error deleting template:', err)
+      toast.error('Error al eliminar plantilla')
+    }
   }
 
   return (
@@ -1002,7 +1043,7 @@ function ExerciseListEditor({ value, onChange }: { value: ExerciseItem[], onChan
 }
 
 // === DAY ROUTINE EDITOR ===
-function DayRoutineEditor({ value, onChange }: { value: RoutineDay[] | ExerciseItem[] | undefined, onChange: (val: RoutineDay[]) => void }) {
+function DayRoutineEditor({ value, onChange, serviceType }: { value: RoutineDay[] | ExerciseItem[] | undefined, onChange: (val: RoutineDay[]) => void, serviceType?: string }) {
   // Migrate legacy flat ExerciseItem[] to RoutineDay[]
   const normalizeDays = (val: any): RoutineDay[] => {
     if (!val || !Array.isArray(val) || val.length === 0) {
@@ -1137,18 +1178,19 @@ function DayRoutineEditor({ value, onChange }: { value: RoutineDay[] | ExerciseI
         <ExerciseListEditor
           value={currentDay.exercises}
           onChange={(exs) => updateDayExercises(activeDay, exs)}
+          serviceType={serviceType}
         />
       )}
     </div>
   )
 }
 
-function RenderFieldInput({ field, value, onChange }: { field: any, value: any, onChange: (val: any) => void }) {
+function RenderFieldInput({ field, value, onChange, serviceType }: { field: any, value: any, onChange: (val: any) => void, serviceType?: string }) {
   switch (field.type) {
     case "exercise_days":
-      return <DayRoutineEditor value={value} onChange={onChange} />
+      return <DayRoutineEditor value={value} onChange={onChange} serviceType={serviceType} />
     case "exercise_list":
-      return <ExerciseListEditor value={value || []} onChange={onChange} />
+      return <ExerciseListEditor value={value || []} onChange={onChange} serviceType={serviceType} />
     case "textarea":
       return <Textarea value={value || ""} onChange={e => onChange(e.target.value)} placeholder="Escriba aquí..." className="min-h-[60px] py-1.5 resize-none text-sm" />
     case "number":
