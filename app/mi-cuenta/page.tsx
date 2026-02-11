@@ -25,7 +25,7 @@ import { PatientLogForm } from "@/components/progreso/patient-log-form"
 import { PatientTaskList } from "@/components/progreso/patient-task-list"
 import { QuickDailyLog } from "@/components/progreso/quick-daily-log"
 import { loadLogs, addLog, updateLog, deleteLog, syncLocalLogs } from "@/lib/exercise-logs.storage"
-import type { ExerciseLog, RoutineDay, ExerciseItem } from "@/lib/types"
+import type { ExerciseLog, RoutineDay, ExerciseItem, RoutineBlock } from "@/lib/types"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
@@ -42,7 +42,7 @@ export default function MiCuentaPage() {
   const [clinicalTreatments, setClinicalTreatments] = useState<any[]>([])
   const [clinicalMassages, setClinicalMassages] = useState<any[]>([])
   const [exerciseLogs, setExerciseLogs] = useState<ExerciseLog[]>(loadLogs())
-  const [trackingModal, setTrackingModal] = useState<{ routineId: string, dayId: string, dayName: string, exercises: ExerciseItem[], editLogId?: string } | null>(null)
+  const [trackingModal, setTrackingModal] = useState<{ routineId: string, dayId: string, dayName: string, exercises: ExerciseItem[], blocks?: RoutineBlock[], editLogId?: string } | null>(null)
   const [trackingForm, setTrackingForm] = useState<Record<string, { completed: boolean, weight: string, duration: string, notes: string }>>({})
   const [activeDayIndex, setActiveDayIndex] = useState<Record<string, number>>({})
 
@@ -270,11 +270,18 @@ export default function MiCuentaPage() {
 
   const openTrackingModal = (routineId: string, day: RoutineDay) => {
     const defaultForm: Record<string, { completed: boolean, weight: string, duration: string, notes: string }> = {}
-    day.exercises.forEach(ex => {
+
+    // Collect all exercises (legacy + blocks)
+    const allExercises = [...day.exercises];
+    day.blocks?.forEach(b => {
+      allExercises.push(...b.exercises);
+    });
+
+    allExercises.forEach(ex => {
       defaultForm[ex.id] = { completed: false, weight: '', duration: '', notes: '' }
     })
     setTrackingForm(defaultForm)
-    setTrackingModal({ routineId, dayId: day.id, dayName: day.name, exercises: day.exercises })
+    setTrackingModal({ routineId, dayId: day.id, dayName: day.name, exercises: day.exercises, blocks: day.blocks })
   }
 
   const openTrackingForEdit = (log: ExerciseLog, routineId: string, day: RoutineDay) => {
@@ -291,7 +298,12 @@ export default function MiCuentaPage() {
     })
 
     // Also Initialize any new exercises that might have been added to the routine since the log was created
-    day.exercises.forEach(ex => {
+    const allExercises = [...day.exercises];
+    day.blocks?.forEach(b => {
+      allExercises.push(...b.exercises);
+    });
+
+    allExercises.forEach(ex => {
       if (!formValues[ex.id]) {
         formValues[ex.id] = { completed: false, weight: '', duration: '', notes: '' }
       }
@@ -303,6 +315,7 @@ export default function MiCuentaPage() {
       dayId: day.id,
       dayName: day.name,
       exercises: day.exercises,
+      blocks: day.blocks,
       editLogId: log.id // Set the ID to enable edit mode
     })
   }
@@ -310,7 +323,13 @@ export default function MiCuentaPage() {
   const submitTracking = () => {
     if (!trackingModal) return
 
-    const exerciseData = trackingModal.exercises.map(ex => ({
+    // Flatten all exercises to save
+    const allExercises = [...trackingModal.exercises];
+    trackingModal.blocks?.forEach(b => {
+      allExercises.push(...b.exercises);
+    });
+
+    const exerciseData = allExercises.map(ex => ({
       exerciseId: ex.id,
       title: ex.title || "Ejercicio",
       completed: trackingForm[ex.id]?.completed || false,
@@ -1872,52 +1891,81 @@ export default function MiCuentaPage() {
                             {/* EXERCISES FOR CURRENT DAY */}
                             {currentDay && (
                               <div className="divide-y divide-slate-100/50">
-                                {currentDay.exercises.map((ex: ExerciseItem, i: number) => (
-                                  <div key={ex.id} className="group/ex p-5 hover:bg-slate-50/80 transition-all duration-500">
-                                    <div className="flex items-center gap-4">
-                                      <div className="h-10 w-10 shrink-0 rounded-xl bg-white shadow-lg shadow-slate-200 flex items-center justify-center text-slate-900 text-sm font-black border border-slate-100 group-hover/ex:bg-indigo-600 group-hover/ex:text-white group-hover/ex:scale-110 transition-all duration-500">
-                                        {(i + 1).toString().padStart(2, "0")}
-                                      </div>
-                                      <div className="flex-1 min-w-0">
-                                        <h4 className="text-base font-black text-slate-900 tracking-tight group-hover/ex:text-indigo-600 transition-colors">{ex.title || `Ejercicio ${i + 1}`}</h4>
-                                        {ex.description && <p className="text-xs text-slate-500 mt-0.5 leading-relaxed">{ex.description}</p>}
-                                        {ex.notes && <p className="text-[10px] text-slate-400 mt-1 italic">{ex.notes}</p>}
-                                      </div>
-                                      {ex.setsReps && (
-                                        <div className="flex items-center gap-1.5 bg-indigo-50 text-indigo-700 px-3 py-1.5 rounded-lg text-xs font-bold border border-indigo-100 shrink-0">
-                                          <Repeat className="h-3 w-3" />
-                                          {ex.setsReps}
+                                {(() => {
+                                  const renderExercise = (ex: ExerciseItem, i: number, blockTitle?: string) => (
+                                    <div key={ex.id} className="group/ex p-5 hover:bg-slate-50/80 transition-all duration-500 relative">
+                                      {blockTitle && (
+                                        <div className="absolute top-2 left-5">
+                                          <Badge variant="outline" className="text-[9px] px-1.5 py-0 h-4 border-slate-200 text-slate-400 font-bold uppercase tracking-wider">{blockTitle}</Badge>
                                         </div>
                                       )}
-                                    </div>
-                                    {ex.videoUrl && (() => {
-                                      const ytMatch = ex.videoUrl.match(/(?:youtube\.com\/(?:watch\?v=|embed\/|shorts\/)|youtu\.be\/)([a-zA-Z0-9_-]{11})/)
-                                      if (ytMatch) {
+                                      <div className={`flex items-center gap-4 ${blockTitle ? 'mt-3' : ''}`}>
+                                        <div className="h-10 w-10 shrink-0 rounded-xl bg-white shadow-lg shadow-slate-200 flex items-center justify-center text-slate-900 text-sm font-black border border-slate-100 group-hover/ex:bg-indigo-600 group-hover/ex:text-white group-hover/ex:scale-110 transition-all duration-500">
+                                          {(i + 1).toString().padStart(2, "0")}
+                                        </div>
+                                        <div className="flex-1 min-w-0">
+                                          <h4 className="text-base font-black text-slate-900 tracking-tight group-hover/ex:text-indigo-600 transition-colors">{ex.title || `Ejercicio ${i + 1}`}</h4>
+                                          {ex.description && <p className="text-xs text-slate-500 mt-0.5 leading-relaxed">{ex.description}</p>}
+                                          {ex.notes && <p className="text-[10px] text-slate-400 mt-1 italic">{ex.notes}</p>}
+                                        </div>
+                                        {ex.setsReps && (
+                                          <div className="flex items-center gap-1.5 bg-indigo-50 text-indigo-700 px-3 py-1.5 rounded-lg text-xs font-bold border border-indigo-100 shrink-0">
+                                            <Repeat className="h-3 w-3" />
+                                            {ex.setsReps}
+                                          </div>
+                                        )}
+                                      </div>
+                                      {ex.videoUrl && (() => {
+                                        const ytMatch = ex.videoUrl.match(/(?:youtube\.com\/(?:watch\?v=|embed\/|shorts\/)|youtu\.be\/)([a-zA-Z0-9_-]{11})/)
+                                        if (ytMatch) {
+                                          return (
+                                            <div className="mt-3 rounded-xl overflow-hidden shadow-md border border-slate-200 aspect-video">
+                                              <iframe
+                                                src={`https://www.youtube.com/embed/${ytMatch[1]}`}
+                                                title={ex.title || 'Video del ejercicio'}
+                                                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                                                allowFullScreen
+                                                className="w-full h-full"
+                                              />
+                                            </div>
+                                          )
+                                        }
                                         return (
-                                          <div className="mt-3 rounded-xl overflow-hidden shadow-md border border-slate-200 aspect-video">
-                                            <iframe
-                                              src={`https://www.youtube.com/embed/${ytMatch[1]}`}
-                                              title={ex.title || 'Video del ejercicio'}
-                                              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                                              allowFullScreen
-                                              className="w-full h-full"
+                                          <div className="mt-3 rounded-xl overflow-hidden shadow-md border border-slate-200">
+                                            <video
+                                              src={ex.videoUrl}
+                                              controls
+                                              className="w-full max-h-[300px] object-contain bg-black"
+                                              preload="metadata"
                                             />
                                           </div>
                                         )
-                                      }
-                                      return (
-                                        <div className="mt-3 rounded-xl overflow-hidden shadow-md border border-slate-200">
-                                          <video
-                                            src={ex.videoUrl}
-                                            controls
-                                            className="w-full max-h-[300px] object-contain bg-black"
-                                            preload="metadata"
-                                          />
+                                      })()}
+                                    </div>
+                                  )
+
+                                  return (
+                                    <>
+                                      {/* Render Blocks */}
+                                      {currentDay.blocks?.map(block => (
+                                        <div key={block.id} className="relative">
+                                          {block.type === 'circuit' && (
+                                            <div className="bg-indigo-50/50 p-2 text-center border-y border-indigo-50">
+                                              <p className="text-[10px] font-black text-indigo-400 uppercase tracking-widest">
+                                                Circuito {block.title}
+                                                {block.circuit?.rounds ? ` • ${block.circuit.rounds} Rounds` : ''}
+                                              </p>
+                                            </div>
+                                          )}
+                                          {block.exercises.map((ex, i) => renderExercise(ex, i, block.type === 'standard' ? block.title : undefined))}
                                         </div>
-                                      )
-                                    })()}
-                                  </div>
-                                ))}
+                                      ))}
+
+                                      {/* Render Legacy/Loose Exercises */}
+                                      {currentDay.exercises.map((ex, i) => renderExercise(ex, i, currentDay.blocks?.length ? 'Otros' : undefined))}
+                                    </>
+                                  )
+                                })()}
                               </div>
                             )}
 
@@ -2156,56 +2204,90 @@ export default function MiCuentaPage() {
                 </DialogTitle>
               </DialogHeader>
               <div className="space-y-4 mt-2">
-                {trackingModal.exercises.map((ex, idx) => (
-                  <div key={ex.id} className="border border-slate-200 rounded-xl p-4 space-y-3">
-                    <div className="flex items-center gap-2">
-                      <button
-                        type="button"
-                        onClick={() => setTrackingForm(prev => ({ ...prev, [ex.id]: { ...prev[ex.id], completed: !prev[ex.id]?.completed } }))}
-                        className={`w-6 h-6 rounded-lg flex items-center justify-center transition-all ${trackingForm[ex.id]?.completed
-                          ? 'bg-emerald-500 text-white shadow-md shadow-emerald-500/20'
-                          : 'bg-slate-100 text-slate-300 hover:bg-slate-200'
-                          }`}
-                      >
-                        <CheckCircle className="h-4 w-4" />
-                      </button>
-                      <div className="flex-1">
-                        <p className="text-sm font-bold text-slate-800">{ex.title || `Ejercicio ${idx + 1}`}</p>
-                        {ex.setsReps && <p className="text-[10px] text-indigo-500 font-semibold">{ex.setsReps}</p>}
+                {/* Helper to render a single exercise input */}
+                {(() => {
+                  const renderExerciseInput = (ex: ExerciseItem, idx: number) => (
+                    <div key={ex.id} className="border border-slate-200 rounded-xl p-4 space-y-3 bg-white">
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setTrackingForm(prev => ({ ...prev, [ex.id]: { ...prev[ex.id], completed: !prev[ex.id]?.completed } }))}
+                          className={`w-6 h-6 rounded-lg flex items-center justify-center transition-all ${trackingForm[ex.id]?.completed
+                            ? 'bg-emerald-500 text-white shadow-md shadow-emerald-500/20'
+                            : 'bg-slate-100 text-slate-300 hover:bg-slate-200'
+                            }`}
+                        >
+                          <CheckCircle className="h-4 w-4" />
+                        </button>
+                        <div className="flex-1">
+                          <p className="text-sm font-bold text-slate-800">{ex.title || `Ejercicio`}</p>
+                          {ex.setsReps && <p className="text-[10px] text-indigo-500 font-semibold">{ex.setsReps}</p>}
+                        </div>
                       </div>
-                    </div>
-                    <div className="grid grid-cols-2 gap-2">
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <label className="text-[10px] font-bold text-slate-400 uppercase mb-0.5 block">Peso (kg)</label>
+                          <Input
+                            value={trackingForm[ex.id]?.weight || ''}
+                            onChange={e => setTrackingForm(prev => ({ ...prev, [ex.id]: { ...prev[ex.id], weight: e.target.value } }))}
+                            placeholder="Ej: 15"
+                            className="h-8 text-sm"
+                            type="number"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-[10px] font-bold text-slate-400 uppercase mb-0.5 block">Duracion</label>
+                          <Input
+                            value={trackingForm[ex.id]?.duration || ''}
+                            onChange={e => setTrackingForm(prev => ({ ...prev, [ex.id]: { ...prev[ex.id], duration: e.target.value } }))}
+                            placeholder="Ej: 10 min"
+                            className="h-8 text-sm"
+                          />
+                        </div>
+                      </div>
                       <div>
-                        <label className="text-[10px] font-bold text-slate-400 uppercase mb-0.5 block">Peso (kg)</label>
-                        <Input
-                          value={trackingForm[ex.id]?.weight || ''}
-                          onChange={e => setTrackingForm(prev => ({ ...prev, [ex.id]: { ...prev[ex.id], weight: e.target.value } }))}
-                          placeholder="Ej: 15"
-                          className="h-8 text-sm"
-                          type="number"
+                        <label className="text-[10px] font-bold text-slate-400 uppercase mb-0.5 block">Notas</label>
+                        <Textarea
+                          value={trackingForm[ex.id]?.notes || ''}
+                          onChange={e => setTrackingForm(prev => ({ ...prev[ex.id], notes: e.target.value }))}
+                          placeholder="Observaciones..."
+                          className="min-h-[40px] text-sm resize-none"
                         />
                       </div>
-                      <div>
-                        <label className="text-[10px] font-bold text-slate-400 uppercase mb-0.5 block">Duracion</label>
-                        <Input
-                          value={trackingForm[ex.id]?.duration || ''}
-                          onChange={e => setTrackingForm(prev => ({ ...prev, [ex.id]: { ...prev[ex.id], duration: e.target.value } }))}
-                          placeholder="Ej: 10 min"
-                          className="h-8 text-sm"
-                        />
-                      </div>
                     </div>
-                    <div>
-                      <label className="text-[10px] font-bold text-slate-400 uppercase mb-0.5 block">Notas</label>
-                      <Textarea
-                        value={trackingForm[ex.id]?.notes || ''}
-                        onChange={e => setTrackingForm(prev => ({ ...prev, [ex.id]: { ...prev[ex.id], notes: e.target.value } }))}
-                        placeholder="Observaciones..."
-                        className="min-h-[40px] text-sm resize-none"
-                      />
-                    </div>
-                  </div>
-                ))}
+                  )
+
+                  return (
+                    <>
+                      {/* Render Blocks */}
+                      {trackingModal.blocks?.map(block => (
+                        <div key={block.id} className="space-y-2">
+                          <div className="flex items-center gap-2 bg-slate-50 px-3 py-1.5 rounded-lg border border-slate-100">
+                            <h4 className="text-xs font-black text-slate-700 uppercase">{block.title}</h4>
+                            {block.type === 'circuit' && <Badge variant="secondary" className="text-[9px] h-5 bg-indigo-50 text-indigo-600">CIRCUITO</Badge>}
+                          </div>
+                          <div className="space-y-3">
+                            {block.exercises.map((ex, i) => renderExerciseInput(ex, i))}
+                          </div>
+                        </div>
+                      ))}
+
+                      {/* Render Legacy Exercises */}
+                      {trackingModal.exercises.length > 0 && (
+                        <div className="space-y-2">
+                          {trackingModal.blocks && trackingModal.blocks.length > 0 && (
+                            <div className="flex items-center gap-2 bg-amber-50 px-3 py-1.5 rounded-lg border border-amber-100">
+                              <h4 className="text-xs font-black text-amber-700 uppercase">Otros Ejercicios</h4>
+                            </div>
+                          )}
+                          <div className="space-y-3">
+                            {trackingModal.exercises.map((ex, i) => renderExerciseInput(ex, i))}
+                          </div>
+                        </div>
+                      )}
+                    </>
+                  )
+                })()}
                 <Button
                   onClick={submitTracking}
                   className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold shadow-lg shadow-emerald-600/20"

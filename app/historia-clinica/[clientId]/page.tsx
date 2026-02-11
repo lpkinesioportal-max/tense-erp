@@ -796,7 +796,91 @@ function VideoUploadField({ value, onChange }: { value: string, onChange: (val: 
   )
 }
 
-// ExerciseItem and RoutineDay imported from @/lib/types
+// ExerciseItem, RoutineDay, RoutineBlock imported from @/lib/types
+import { RoutineBlock, RoutineBlockType } from "@/lib/types"
+
+// === BLOCK EDITOR === 
+function BlockEditor({ block, onChange, onDelete, onDuplicate, serviceType }: { block: RoutineBlock, onChange: (b: RoutineBlock) => void, onDelete: () => void, onDuplicate: () => void, serviceType?: string }) {
+  const updateBlock = (field: keyof RoutineBlock, value: any) => {
+    onChange({ ...block, [field]: value })
+  }
+
+  const updateCircuit = (field: string, value: any) => {
+    onChange({
+      ...block,
+      circuit: { ...block.circuit, [field]: value }
+    })
+  }
+
+  return (
+    <div className="border border-slate-300 rounded-xl bg-slate-50/50 overflow-hidden shadow-sm">
+      {/* Block Header */}
+      <div className="flex items-center gap-2 p-3 bg-slate-100 border-b border-slate-200">
+        <div className="flex-1 flex items-center gap-2">
+          <Input
+            value={block.title}
+            onChange={e => updateBlock('title', e.target.value)}
+            className="h-8 font-bold bg-white text-sm"
+            placeholder="Nombre del Bloque (ej: Entrada en calor)"
+          />
+          <Select value={block.type} onValueChange={(val: RoutineBlockType) => updateBlock('type', val)}>
+            <SelectTrigger className="h-8 w-[110px] text-xs bg-white">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="standard">Estándar</SelectItem>
+              <SelectItem value="circuit">Circuito</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="flex items-center gap-1">
+          <button type="button" onClick={onDuplicate} className="p-1.5 text-blue-600 hover:bg-blue-100 rounded transition-colors" title="Duplicar Bloque">
+            <Copy className="h-3.5 w-3.5" />
+          </button>
+          <button type="button" onClick={onDelete} className="p-1.5 text-red-500 hover:bg-red-100 rounded transition-colors" title="Eliminar Bloque">
+            <Trash2 className="h-3.5 w-3.5" />
+          </button>
+        </div>
+      </div>
+
+      {/* Circuit Configuration */}
+      {block.type === 'circuit' && (
+        <div className="p-3 bg-indigo-50/50 border-b border-indigo-100 grid grid-cols-2 md:grid-cols-4 gap-3">
+          <div>
+            <label className="text-[10px] font-bold text-indigo-400 uppercase">Rounds</label>
+            <Input
+              type="number"
+              value={block.circuit?.rounds || ''}
+              onChange={e => updateCircuit('rounds', Number(e.target.value))}
+              className="h-7 text-xs bg-white"
+              placeholder="Ej: 3"
+            />
+          </div>
+          <div>
+            <label className="text-[10px] font-bold text-indigo-400 uppercase">Descanso (seg)</label>
+            <Input
+              type="number"
+              value={block.circuit?.restSeconds || ''}
+              onChange={e => updateCircuit('restSeconds', Number(e.target.value))}
+              className="h-7 text-xs bg-white"
+              placeholder="Ej: 60"
+            />
+          </div>
+          {/* Add more fields here if needed like Time Cap */}
+        </div>
+      )}
+
+      {/* Exercises in Block */}
+      <div className="p-3">
+        <ExerciseListEditor
+          value={block.exercises}
+          onChange={(exs) => updateBlock('exercises', exs)}
+          serviceType={serviceType}
+        />
+      </div>
+    </div>
+  )
+}
 
 function ExerciseListEditor({ value, onChange, serviceType = 'general' }: { value: ExerciseItem[], onChange: (val: ExerciseItem[]) => void, serviceType?: string }) {
   const exercises: ExerciseItem[] = Array.isArray(value) ? value : []
@@ -1047,19 +1131,21 @@ function DayRoutineEditor({ value, onChange, serviceType }: { value: RoutineDay[
   // Migrate legacy flat ExerciseItem[] to RoutineDay[]
   const normalizeDays = (val: any): RoutineDay[] => {
     if (!val || !Array.isArray(val) || val.length === 0) {
-      return [{ id: Date.now().toString(), name: 'Día 1', exercises: [] }]
+      return [{ id: Date.now().toString(), name: 'Día 1', exercises: [], blocks: [] }]
     }
     // Check if it's legacy flat array (has 'title' field = ExerciseItem)
     if (val[0] && 'title' in val[0] && !('exercises' in val[0])) {
-      return [{ id: Date.now().toString(), name: 'Día 1', exercises: val as ExerciseItem[] }]
+      return [{ id: Date.now().toString(), name: 'Día 1', exercises: val as ExerciseItem[], blocks: [] }]
     }
-    return val as RoutineDay[]
+
+    // Ensure blocks array exists
+    return val.map((d: any) => ({ ...d, blocks: d.blocks || [] })) as RoutineDay[]
   }
 
   const [days, setDays] = useState<RoutineDay[]>(() => normalizeDays(value))
   const [activeDay, setActiveDay] = useState(0)
 
-  // Sync up when days change
+  // Helper to force update
   const updateDays = (newDays: RoutineDay[]) => {
     setDays(newDays)
     onChange(newDays)
@@ -1069,7 +1155,8 @@ function DayRoutineEditor({ value, onChange, serviceType }: { value: RoutineDay[
     const newDay: RoutineDay = {
       id: Date.now().toString() + Math.random().toString(36).slice(2, 5),
       name: `Día ${days.length + 1}`,
-      exercises: []
+      exercises: [],
+      blocks: []
     }
     const updated = [...days, newDay]
     updateDays(updated)
@@ -1091,10 +1178,12 @@ function DayRoutineEditor({ value, onChange, serviceType }: { value: RoutineDay[
     const newDay: RoutineDay = {
       id: Date.now().toString() + Math.random().toString(36).slice(2, 5),
       name: `${source.name} (copia)`,
-      exercises: source.exercises.map(ex => ({
-        ...ex,
-        id: Date.now().toString() + Math.random().toString(36).slice(2, 7)
-      }))
+      exercises: source.exercises.map(ex => ({ ...ex, id: Date.now().toString() + Math.random().toString(36).slice(2, 7) })),
+      blocks: source.blocks?.map(b => ({
+        ...b,
+        id: Date.now().toString() + Math.random().toString(36).slice(2, 7),
+        exercises: b.exercises.map(ex => ({ ...ex, id: Date.now().toString() + Math.random().toString(36).slice(2, 7) }))
+      })) || []
     }
     const updated = [...days]
     updated.splice(idx + 1, 0, newDay)
@@ -1107,6 +1196,61 @@ function DayRoutineEditor({ value, onChange, serviceType }: { value: RoutineDay[
     const updated = [...days]
     updated[idx] = { ...updated[idx], name }
     updateDays(updated)
+  }
+
+  // --- Block Management ---
+  const addBlock = (dayIdx: number) => {
+    const day = days[dayIdx]
+    const newBlock: RoutineBlock = {
+      id: Date.now().toString(),
+      title: `Bloque ${(day.blocks?.length || 0) + 1}`,
+      type: 'standard',
+      order: (day.blocks?.length || 0),
+      exercises: []
+    }
+
+    // If there were legacy exercises, ask or move them? 
+    // For now, let's keep them separate. User can move manualy if needed (not implemented yet).
+    // Or better: If it's the FIRST block and there are exercises, maybe we should wrap them? 
+    // Let's keep it simple: Blocks are additive.
+
+    const updatedDays = [...days]
+    updatedDays[dayIdx] = {
+      ...day,
+      blocks: [...(day.blocks || []), newBlock]
+    }
+    updateDays(updatedDays)
+  }
+
+  const updateBlock = (dayIdx: number, blockIdx: number, newBlock: RoutineBlock) => {
+    const updatedDays = [...days]
+    const blocks = [...(updatedDays[dayIdx].blocks || [])]
+    blocks[blockIdx] = newBlock
+    updatedDays[dayIdx] = { ...updatedDays[dayIdx], blocks }
+    updateDays(updatedDays)
+  }
+
+  const removeBlock = (dayIdx: number, blockIdx: number) => {
+    const updatedDays = [...days]
+    const blocks = [...(updatedDays[dayIdx].blocks || [])]
+    blocks.splice(blockIdx, 1)
+    updatedDays[dayIdx] = { ...updatedDays[dayIdx], blocks }
+    updateDays(updatedDays)
+  }
+
+  const duplicateBlock = (dayIdx: number, blockIdx: number) => {
+    const updatedDays = [...days]
+    const blocks = [...(updatedDays[dayIdx].blocks || [])]
+    const source = blocks[blockIdx]
+    const newBlock = {
+      ...source,
+      id: Date.now().toString(),
+      title: `${source.title} (copia)`,
+      exercises: source.exercises.map(ex => ({ ...ex, id: Date.now().toString() + Math.random().toString(36).slice(2, 7) }))
+    }
+    blocks.splice(blockIdx + 1, 0, newBlock)
+    updatedDays[dayIdx] = { ...updatedDays[dayIdx], blocks }
+    updateDays(updatedDays)
   }
 
   const updateDayExercises = (idx: number, exercises: ExerciseItem[]) => {
@@ -1133,9 +1277,9 @@ function DayRoutineEditor({ value, onChange, serviceType }: { value: RoutineDay[
           >
             <Layers className="h-3 w-3 inline mr-1.5" />
             {day.name}
-            {day.exercises.length > 0 && (
+            {((day.blocks?.length || 0) > 0 || day.exercises.length > 0) && (
               <span className="ml-1.5 bg-primary/10 text-primary text-[9px] px-1.5 py-0.5 rounded-full font-bold">
-                {day.exercises.length}
+                {(day.blocks?.reduce((acc, b) => acc + b.exercises.length, 0) || 0) + day.exercises.length}
               </span>
             )}
           </button>
@@ -1173,13 +1317,54 @@ function DayRoutineEditor({ value, onChange, serviceType }: { value: RoutineDay[
         </div>
       )}
 
-      {/* EXERCISES FOR THIS DAY */}
+      {/* BLOCKS & EXERCISES */}
       {currentDay && (
-        <ExerciseListEditor
-          value={currentDay.exercises}
-          onChange={(exs) => updateDayExercises(activeDay, exs)}
-          serviceType={serviceType}
-        />
+        <div className="space-y-4">
+          {/* Render Blocks */}
+          {currentDay.blocks && currentDay.blocks.length > 0 && (
+            <div className="space-y-4">
+              {currentDay.blocks.map((block, bIdx) => (
+                <BlockEditor
+                  key={block.id}
+                  block={block}
+                  onChange={(b) => updateBlock(activeDay, bIdx, b)}
+                  onDelete={() => removeBlock(activeDay, bIdx)}
+                  onDuplicate={() => duplicateBlock(activeDay, bIdx)}
+                  serviceType={serviceType}
+                />
+              ))}
+            </div>
+          )}
+
+          {/* Add Block Button */}
+          <button
+            type="button"
+            onClick={() => addBlock(activeDay)}
+            className="w-full py-2 bg-slate-100 hover:bg-slate-200 border-2 border-dashed border-slate-300 rounded-xl text-slate-500 font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2 transition-all"
+          >
+            <LayoutGrid className="h-4 w-4" /> Agregar Bloque
+          </button>
+
+          {/* Legacy Exercises (or loose exercises) */}
+          {currentDay.exercises.length > 0 && (
+            <div className="border border-amber-200 bg-amber-50 rounded-xl p-4">
+              <div className="text-xs font-bold text-amber-700 uppercase mb-2 flex items-center gap-2">
+                <AlertCircle className="h-4 w-4" /> Ejercicios Sin Bloque (Legacy)
+              </div>
+              <ExerciseListEditor
+                value={currentDay.exercises}
+                onChange={(exs) => updateDayExercises(activeDay, exs)}
+                serviceType={serviceType}
+              />
+            </div>
+          )}
+
+          {/* Fallback: If no blocks and no exercises, show one empty ExerciseListEditor? 
+               The "Add Block" button essentially replaces the direct "Add Exercise" flow if we want to enforce blocks. 
+               But to keep backward compat, we can hide the direct editor if blocks exist, OR allow both.
+               Currently I put "Add Block" prominently. 
+           */}
+        </div>
       )}
     </div>
   )
@@ -1309,23 +1494,44 @@ function FichaDisplay({ item, config, typeInfo, allEntries, onEdit, onDeleteLog 
                       const days = val as any[]
                       // Check if it's legacy flat array
                       const isLegacy = days.length > 0 && 'title' in days[0] && !('exercises' in days[0])
-                      const routineDays = isLegacy ? [{ id: '1', name: 'Día 1', exercises: days }] : days
+                      const routineDays = isLegacy ? [{ id: '1', name: 'Día 1', exercises: days, blocks: [] }] : days
                       return (
                         <div key={field.id} className="space-y-2">
                           {routineDays.map((day: any, dIdx: number) => (
                             <div key={day.id || dIdx}>
-                              <div className="flex items-center gap-1.5 mb-1">
+                              <div className="flex items-center gap-1.5 mb-1 bg-slate-100/50 px-2 py-1 rounded">
                                 <Layers className="h-3 w-3 text-primary" />
                                 <span className="text-[10px] font-bold text-primary uppercase">{day.name}</span>
-                                <span className="text-[9px] text-slate-400">({day.exercises?.length || 0} ej.)</span>
+                                <span className="text-[9px] text-slate-400">
+                                  ({(day.blocks?.reduce((acc: number, b: any) => acc + b.exercises.length, 0) || 0) + (day.exercises?.length || 0)} ej.)
+                                </span>
                               </div>
-                              {day.exercises?.map((ex: any, i: number) => (
-                                <div key={i} className="bg-slate-50 rounded-md p-2 border border-slate-100 ml-3 mb-1">
-                                  <div className="flex items-center gap-1.5">
-                                    <div className="w-4 h-4 rounded-full bg-primary/10 text-primary flex items-center justify-center text-[9px] font-bold">{i + 1}</div>
-                                    <span className="text-xs font-semibold text-slate-700">{ex.title || `Ejercicio ${i + 1}`}</span>
-                                    {ex.setsReps && <span className="ml-auto text-[10px] font-bold text-blue-600">{ex.setsReps}</span>}
+
+                              {/* Render Blocks */}
+                              {day.blocks?.map((block: any, bIdx: number) => (
+                                <div key={block.id || bIdx} className="mb-2 pl-2 border-l-2 border-slate-200 ml-1">
+                                  <div className="flex items-baseline gap-2 mb-1">
+                                    <span className="text-[10px] font-black text-slate-600 uppercase tracking-tight">{block.title}</span>
+                                    {block.type === 'circuit' && (
+                                      <span className="text-[9px] font-bold text-indigo-500 bg-indigo-50 px-1 rounded uppercase">
+                                        Circuito {block.circuit?.rounds ? `x${block.circuit.rounds}` : ''}
+                                      </span>
+                                    )}
                                   </div>
+                                  {block.exercises?.map((ex: any, i: number) => (
+                                    <div key={i} className="flex items-center gap-1.5 mb-1 ml-1">
+                                      <div className="w-3 h-3 rounded-full bg-slate-200 text-slate-500 flex items-center justify-center text-[8px] font-bold">{i + 1}</div>
+                                      <span className="text-[10px] font-medium text-slate-600 truncate max-w-[180px]">{ex.title}</span>
+                                    </div>
+                                  ))}
+                                </div>
+                              ))}
+
+                              {/* Legacy Exercises */}
+                              {day.exercises?.map((ex: any, i: number) => (
+                                <div key={i} className="bg-slate-50 rounded-md p-1.5 border border-slate-100 ml-1 mb-1 flex items-center gap-1.5">
+                                  <div className="w-3 h-3 rounded-full bg-primary/10 text-primary flex items-center justify-center text-[8px] font-bold">{i + 1}</div>
+                                  <span className="text-[10px] font-medium text-slate-600 truncate max-w-[200px]">{ex.title}</span>
                                 </div>
                               ))}
                             </div>
@@ -1520,55 +1726,126 @@ function FichaDisplay({ item, config, typeInfo, allEntries, onEdit, onDeleteLog 
                     if (field.type === 'exercise_days' && Array.isArray(val)) {
                       const days = val as any[]
                       const isLegacy = days.length > 0 && 'title' in days[0] && !('exercises' in days[0])
-                      const routineDays = isLegacy ? [{ id: '1', name: 'Día 1', exercises: days }] : days
+                      const routineDays = isLegacy ? [{ id: '1', name: 'Día 1', exercises: days, blocks: [] }] : days
                       return (
                         <div key={field.id} className="md:col-span-2 space-y-4">
                           {routineDays.map((day: any, dIdx: number) => (
-                            <div key={day.id || dIdx}>
-                              <div className="flex items-center gap-2 mb-2 bg-gradient-to-r from-primary/10 to-transparent px-3 py-2 rounded-lg">
+                            <div key={day.id || dIdx} className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm">
+                              {/* Day Header */}
+                              <div className="flex items-center gap-2 bg-slate-50/80 px-4 py-3 border-b border-slate-100">
                                 <Layers className="h-4 w-4 text-primary" />
                                 <span className="text-sm font-bold text-primary">{day.name}</span>
-                                <span className="text-xs text-slate-400">— {day.exercises?.length || 0} ejercicio{(day.exercises?.length || 0) !== 1 ? 's' : ''}</span>
+                                <span className="text-xs text-slate-400">
+                                  — {(day.blocks?.reduce((acc: number, b: any) => acc + b.exercises.length, 0) || 0) + (day.exercises?.length || 0)} ejercicios
+                                </span>
                               </div>
-                              {day.exercises?.map((ex: any, i: number) => (
-                                <div key={i} className="border border-slate-200 rounded-lg overflow-hidden mb-2 ml-2">
-                                  <div className="flex items-center gap-2 bg-slate-50 px-4 py-2 border-b border-slate-100">
-                                    <div className="w-6 h-6 rounded-full bg-primary/10 text-primary flex items-center justify-center text-xs font-bold">{i + 1}</div>
-                                    <span className="text-sm font-bold text-slate-800">{ex.title || `Ejercicio ${i + 1}`}</span>
-                                    {ex.setsReps && (
-                                      <div className="ml-auto px-2.5 py-1 rounded-full bg-primary text-white text-xs font-bold leading-none shadow-sm flex items-center gap-1">
-                                        <Repeat className="h-3 w-3" />
-                                        {ex.setsReps}
+
+                              <div className="p-4 space-y-6">
+                                {/* Blocks */}
+                                {day.blocks?.map((block: any, bIdx: number) => (
+                                  <div key={block.id || bIdx} className="space-y-3">
+                                    <div className="flex items-center gap-3 border-b border-slate-100 pb-2">
+                                      <h5 className="text-sm font-black text-slate-800 uppercase tracking-tight">{block.title}</h5>
+                                      {block.type === 'circuit' && (
+                                        <Badge variant="secondary" className="bg-indigo-50 text-indigo-600 border-indigo-100 text-[10px]">
+                                          Circuito
+                                          {block.circuit?.rounds ? ` • ${block.circuit.rounds} Rounds` : ''}
+                                          {block.circuit?.restSeconds ? ` • ${block.circuit.restSeconds}" Pausa` : ''}
+                                        </Badge>
+                                      )}
+                                      {block.notes && <span className="text-xs text-slate-400 italic ml-auto truncate max-w-[200px]">{block.notes}</span>}
+                                    </div>
+                                    <div className="grid grid-cols-1 gap-3">
+                                      {block.exercises?.map((ex: any, i: number) => (
+                                        <div key={i} className="flex gap-3 bg-slate-50/50 rounded-lg p-3 border border-slate-100 hover:border-slate-200 transition-colors">
+                                          <div className="w-6 h-6 rounded-full bg-white border border-slate-200 text-slate-500 flex items-center justify-center text-xs font-bold shrink-0 shadow-sm mt-0.5">{i + 1}</div>
+                                          <div className="flex-1 space-y-2">
+                                            <div className="flex justify-between items-start gap-2">
+                                              <span className="text-sm font-bold text-slate-700 leading-tight">{ex.title}</span>
+                                              {ex.setsReps && (
+                                                <Badge variant="outline" className="bg-white whitespace-nowrap text-[10px] font-bold text-slate-600 border-slate-200">
+                                                  {ex.setsReps}
+                                                </Badge>
+                                              )}
+                                            </div>
+                                            {ex.description && <p className="text-xs text-slate-600 leading-relaxed bg-white/50 p-2 rounded border border-slate-100/50">{ex.description}</p>}
+                                            {/* Video & Notes */}
+                                            {(ex.videoUrl || ex.notes) && (
+                                              <div className="flex flex-wrap gap-2 pt-1">
+                                                {ex.videoUrl && (
+                                                  <div className="w-full max-w-[200px] mt-1">
+                                                    {(() => {
+                                                      const ytMatch = ex.videoUrl.match(/(?:youtube\.com\/(?:watch\?v=|embed\/|shorts\/)|youtu\.be\/)([a-zA-Z0-9_-]{11})/)
+                                                      if (ytMatch) {
+                                                        return (
+                                                          <a href={ex.videoUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 text-[10px] font-bold text-red-600 bg-red-50 px-2 py-1 rounded hover:bg-red-100 transition-colors w-fit">
+                                                            <span className="text-xs">▶</span> Ver Video
+                                                          </a>
+                                                        )
+                                                      }
+                                                      return (
+                                                        <video src={ex.videoUrl} controls preload="metadata" className="w-full max-h-[120px] rounded bg-black" />
+                                                      )
+                                                    })()}
+                                                  </div>
+                                                )}
+                                                {ex.notes && <span className="text-[10px] italic text-amber-600 bg-amber-50 px-2 py-1 rounded border border-amber-100 w-full">📝 {ex.notes}</span>}
+                                              </div>
+                                            )}
+                                          </div>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  </div>
+                                ))}
+
+                                {/* Legacy Exercises */}
+                                {day.exercises?.length > 0 && (
+                                  <div className="space-y-3 pt-2 border-t border-dashed border-slate-200">
+                                    {day.blocks?.length > 0 && <h5 className="text-xs font-bold text-slate-400 uppercase">Otros Ejercicios</h5>}
+                                    {day.exercises.map((ex: any, i: number) => (
+                                      <div key={i} className="border border-slate-200 rounded-lg overflow-hidden mb-2 ml-2">
+                                        {/* ... existing exercise renderer ... */}
+                                        <div className="flex items-center gap-2 bg-slate-50 px-4 py-2 border-b border-slate-100">
+                                          <div className="w-6 h-6 rounded-full bg-primary/10 text-primary flex items-center justify-center text-xs font-bold">{i + 1}</div>
+                                          <span className="text-sm font-bold text-slate-800">{ex.title || `Ejercicio ${i + 1}`}</span>
+                                          {ex.setsReps && (
+                                            <div className="ml-auto px-2.5 py-1 rounded-full bg-primary text-white text-xs font-bold leading-none shadow-sm flex items-center gap-1">
+                                              <Repeat className="h-3 w-3" />
+                                              {ex.setsReps}
+                                            </div>
+                                          )}
+                                        </div>
+                                        <div className="p-4 space-y-3">
+                                          {ex.description && (
+                                            <div className="text-sm text-slate-700 bg-slate-50 p-2 rounded-md border border-slate-100">{ex.description}</div>
+                                          )}
+                                          {ex.videoUrl && (() => {
+                                            const ytMatch = ex.videoUrl.match(/(?:youtube\.com\/(?:watch\?v=|embed\/|shorts\/)|youtu\.be\/)([a-zA-Z0-9_-]{11})/)
+                                            if (ytMatch) {
+                                              return (
+                                                <iframe width="100%" height="280" src={`https://www.youtube.com/embed/${ytMatch[1]}`}
+                                                  title={ex.title || 'Video'} frameBorder="0"
+                                                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                                                  allowFullScreen className="rounded-lg" />
+                                              )
+                                            }
+                                            return (
+                                              <video src={ex.videoUrl} controls preload="metadata"
+                                                className="w-full max-h-[350px] rounded-lg bg-black">
+                                                Tu navegador no soporta la reproducción de video.
+                                              </video>
+                                            )
+                                          })()}
+                                          {ex.notes && (
+                                            <div className="text-xs text-slate-500 italic bg-amber-50 p-2 rounded-md border border-amber-100">📝 {ex.notes}</div>
+                                          )}
+                                        </div>
                                       </div>
-                                    )}
+                                    ))}
                                   </div>
-                                  <div className="p-4 space-y-3">
-                                    {ex.description && (
-                                      <div className="text-sm text-slate-700 bg-slate-50 p-2 rounded-md border border-slate-100">{ex.description}</div>
-                                    )}
-                                    {ex.videoUrl && (() => {
-                                      const ytMatch = ex.videoUrl.match(/(?:youtube\.com\/(?:watch\?v=|embed\/|shorts\/)|youtu\.be\/)([a-zA-Z0-9_-]{11})/)
-                                      if (ytMatch) {
-                                        return (
-                                          <iframe width="100%" height="280" src={`https://www.youtube.com/embed/${ytMatch[1]}`}
-                                            title={ex.title || 'Video'} frameBorder="0"
-                                            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                                            allowFullScreen className="rounded-lg" />
-                                        )
-                                      }
-                                      return (
-                                        <video src={ex.videoUrl} controls preload="metadata"
-                                          className="w-full max-h-[350px] rounded-lg bg-black">
-                                          Tu navegador no soporta la reproducción de video.
-                                        </video>
-                                      )
-                                    })()}
-                                    {ex.notes && (
-                                      <div className="text-xs text-slate-500 italic bg-amber-50 p-2 rounded-md border border-amber-100">📝 {ex.notes}</div>
-                                    )}
-                                  </div>
-                                </div>
-                              ))}
+                                )}
+                              </div>
                             </div>
                           ))}
                         </div>

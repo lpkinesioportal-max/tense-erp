@@ -587,10 +587,29 @@ export interface ExerciseItem {
   notes: string
 }
 
+// Block Types
+export type RoutineBlockType = 'standard' | 'circuit'
+
+export interface RoutineBlock {
+  id: string
+  title: string
+  type: RoutineBlockType
+  notes?: string
+  order: number
+  circuit?: {
+    rounds?: number
+    restSeconds?: number
+    timeCapSeconds?: number
+    format?: 'for_reps' | 'amrap' | 'emom' | 'quality'
+  }
+  exercises: ExerciseItem[]
+}
+
 export interface RoutineDay {
   id: string
   name: string
-  exercises: ExerciseItem[]
+  exercises: ExerciseItem[] // Legacy: exercises if no blocks
+  blocks?: RoutineBlock[]   // New: blocks of exercises
 }
 
 export interface ExerciseLog {
