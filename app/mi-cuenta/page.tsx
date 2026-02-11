@@ -44,6 +44,7 @@ export default function MiCuentaPage() {
   const [exerciseLogs, setExerciseLogs] = useState<ExerciseLog[]>(loadLogs())
   const [trackingModal, setTrackingModal] = useState<{ routineId: string, dayId: string, dayName: string, exercises: ExerciseItem[], blocks?: RoutineBlock[], editLogId?: string } | null>(null)
   const [trackingForm, setTrackingForm] = useState<Record<string, { completed: boolean, weight: string, duration: string, notes: string }>>({})
+  const [sessionNotes, setSessionNotes] = useState("")
   const [activeDayIndex, setActiveDayIndex] = useState<Record<string, number>>({})
 
   useEffect(() => {
@@ -287,6 +288,7 @@ export default function MiCuentaPage() {
       defaultForm[ex.id] = { completed: false, weight: '', duration: '', notes: '' }
     })
     setTrackingForm(defaultForm)
+    setSessionNotes("")
     setTrackingModal({ routineId, dayId: day.id, dayName: day.name, exercises: day.exercises, blocks: day.blocks })
   }
 
@@ -309,13 +311,15 @@ export default function MiCuentaPage() {
       allExercises.push(...b.exercises);
     });
 
-    allExercises.forEach(ex => {
-      if (!formValues[ex.id]) {
-        formValues[ex.id] = { completed: false, weight: '', duration: '', notes: '' }
+    allExercises.forEach((ex, idx) => {
+      const stateKey = ex.id || ex.title || `idx_${idx}`
+      if (!formValues[stateKey]) {
+        formValues[stateKey] = { completed: false, weight: '', duration: '', notes: '' }
       }
     })
 
     setTrackingForm(formValues)
+    setSessionNotes(log.notesForSession || log.notes || "")
     setTrackingModal({
       routineId,
       dayId: day.id,
@@ -335,14 +339,19 @@ export default function MiCuentaPage() {
       allExercises.push(...b.exercises);
     });
 
-    const exerciseData = allExercises.map(ex => ({
-      exerciseId: ex.id,
-      title: ex.title || "Ejercicio",
-      completed: trackingForm[ex.id]?.completed || false,
-      weight: trackingForm[ex.id]?.weight || '',
-      duration: trackingForm[ex.id]?.duration || '',
-      notes: trackingForm[ex.id]?.notes || ''
-    }))
+    const exerciseData = allExercises.map((ex, idx) => {
+      const stateKey = ex.id || ex.title || `idx_${idx}`
+      const formData = trackingForm[stateKey] || {}
+
+      return {
+        exerciseId: ex.id,
+        title: ex.title || "Ejercicio",
+        completed: formData.completed || false,
+        weight: formData.weight || '',
+        duration: formData.duration || '',
+        notes: formData.notes || ''
+      }
+    })
 
     if (trackingModal.editLogId) {
       // Update existing log
@@ -352,7 +361,8 @@ export default function MiCuentaPage() {
         dayId: trackingModal.dayId,
         dayName: trackingModal.dayName,
         date: exerciseLogs.find(l => l.id === trackingModal.editLogId)?.date || new Date().toISOString(), // Keep original date
-        exercises: exerciseData
+        exercises: exerciseData,
+        notesForSession: sessionNotes
       }
       updateLog(updatedLog, client?.id)
     } else {
@@ -363,12 +373,14 @@ export default function MiCuentaPage() {
         dayId: trackingModal.dayId,
         dayName: trackingModal.dayName,
         date: new Date().toISOString(),
-        exercises: exerciseData
+        exercises: exerciseData,
+        notesForSession: sessionNotes
       }
       addLog(newLog, client?.id)
     }
 
     setExerciseLogs(loadLogs())
+    setSessionNotes("")
     setTrackingModal(null)
   }
 
@@ -2245,56 +2257,60 @@ export default function MiCuentaPage() {
               <div className="space-y-4 mt-2">
                 {/* Helper to render a single exercise input */}
                 {(() => {
-                  const renderExerciseInput = (ex: ExerciseItem, idx: number) => (
-                    <div key={ex.id} className="border border-slate-200 rounded-xl p-4 space-y-3 bg-white">
-                      <div className="flex items-center gap-2">
-                        <button
-                          type="button"
-                          onClick={() => setTrackingForm(prev => ({ ...prev, [ex.id]: { ...prev[ex.id], completed: !prev[ex.id]?.completed } }))}
-                          className={`w-6 h-6 rounded-lg flex items-center justify-center transition-all ${trackingForm[ex.id]?.completed
-                            ? 'bg-emerald-500 text-white shadow-md shadow-emerald-500/20'
-                            : 'bg-slate-100 text-slate-300 hover:bg-slate-200'
-                            }`}
-                        >
-                          <CheckCircle className="h-4 w-4" />
-                        </button>
-                        <div className="flex-1">
-                          <p className="text-sm font-bold text-slate-800">{ex.title || `Ejercicio`}</p>
-                          {ex.setsReps && <p className="text-[10px] text-indigo-500 font-semibold">{ex.setsReps}</p>}
+                  const renderExerciseInput = (ex: ExerciseItem, idx: number) => {
+                    const stateKey = ex.id || ex.title || `idx_${idx}`
+
+                    return (
+                      <div key={stateKey} className="border border-slate-200 rounded-xl p-4 space-y-3 bg-white">
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => setTrackingForm(prev => ({ ...prev, [stateKey]: { ...prev[stateKey], completed: !prev[stateKey]?.completed } }))}
+                            className={`w-6 h-6 rounded-lg flex items-center justify-center transition-all ${trackingForm[stateKey]?.completed
+                              ? 'bg-emerald-500 text-white shadow-md shadow-emerald-500/20'
+                              : 'bg-slate-100 text-slate-300 hover:bg-slate-200'
+                              }`}
+                          >
+                            <CheckCircle className="h-4 w-4" />
+                          </button>
+                          <div className="flex-1">
+                            <p className="text-sm font-bold text-slate-800">{ex.title || `Ejercicio`}</p>
+                            {ex.setsReps && <p className="text-[10px] text-indigo-500 font-semibold">{ex.setsReps}</p>}
+                          </div>
                         </div>
-                      </div>
-                      <div className="grid grid-cols-2 gap-2">
+                        <div className="grid grid-cols-2 gap-2">
+                          <div>
+                            <label className="text-[10px] font-bold text-slate-400 uppercase mb-0.5 block">Peso (kg)</label>
+                            <Input
+                              value={trackingForm[stateKey]?.weight || ''}
+                              onChange={e => setTrackingForm(prev => ({ ...prev, [stateKey]: { ...prev[stateKey], weight: e.target.value } }))}
+                              placeholder="Ej: 15"
+                              className="h-8 text-sm"
+                              type="number"
+                            />
+                          </div>
+                          <div>
+                            <label className="text-[10px] font-bold text-slate-400 uppercase mb-0.5 block">Duracion</label>
+                            <Input
+                              value={trackingForm[stateKey]?.duration || ''}
+                              onChange={e => setTrackingForm(prev => ({ ...prev, [stateKey]: { ...prev[stateKey], duration: e.target.value } }))}
+                              placeholder="Ej: 10 min"
+                              className="h-8 text-sm"
+                            />
+                          </div>
+                        </div>
                         <div>
-                          <label className="text-[10px] font-bold text-slate-400 uppercase mb-0.5 block">Peso (kg)</label>
-                          <Input
-                            value={trackingForm[ex.id]?.weight || ''}
-                            onChange={e => setTrackingForm(prev => ({ ...prev, [ex.id]: { ...prev[ex.id], weight: e.target.value } }))}
-                            placeholder="Ej: 15"
-                            className="h-8 text-sm"
-                            type="number"
+                          <label className="text-[10px] font-bold text-slate-400 uppercase mb-0.5 block">Notas</label>
+                          <Textarea
+                            value={trackingForm[stateKey]?.notes || ''}
+                            onChange={e => setTrackingForm(prev => ({ ...prev, [stateKey]: { ...prev[stateKey], notes: e.target.value } }))}
+                            placeholder="Observaciones..."
+                            className="min-h-[40px] text-sm resize-none"
                           />
                         </div>
-                        <div>
-                          <label className="text-[10px] font-bold text-slate-400 uppercase mb-0.5 block">Duracion</label>
-                          <Input
-                            value={trackingForm[ex.id]?.duration || ''}
-                            onChange={e => setTrackingForm(prev => ({ ...prev, [ex.id]: { ...prev[ex.id], duration: e.target.value } }))}
-                            placeholder="Ej: 10 min"
-                            className="h-8 text-sm"
-                          />
-                        </div>
                       </div>
-                      <div>
-                        <label className="text-[10px] font-bold text-slate-400 uppercase mb-0.5 block">Notas</label>
-                        <Textarea
-                          value={trackingForm[ex.id]?.notes || ''}
-                          onChange={e => setTrackingForm(prev => ({ ...prev[ex.id], notes: e.target.value }))}
-                          placeholder="Observaciones..."
-                          className="min-h-[40px] text-sm resize-none"
-                        />
-                      </div>
-                    </div>
-                  )
+                    )
+                  }
 
                   return (
                     <>
@@ -2327,6 +2343,17 @@ export default function MiCuentaPage() {
                     </>
                   )
                 })()}
+
+                <div className="pt-4 border-t border-slate-100">
+                  <label className="text-xs font-black text-slate-400 uppercase tracking-widest mb-2 block">Notas Generales de la Sesión</label>
+                  <Textarea
+                    value={sessionNotes}
+                    onChange={e => setSessionNotes(e.target.value)}
+                    placeholder="¿Cómo te sentiste hoy? ¿Alguna observación general?"
+                    className="min-h-[80px] bg-slate-50 border-slate-200 rounded-xl focus:bg-white transition-all text-sm"
+                  />
+                </div>
+
                 <Button
                   onClick={submitTracking}
                   className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold shadow-lg shadow-emerald-600/20"

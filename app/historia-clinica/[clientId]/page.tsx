@@ -29,6 +29,7 @@ import {
   Clock,
   ChevronRight,
   Plus,
+  CirclePlus,
   Search,
   Filter,
   MoreVertical,
@@ -120,15 +121,149 @@ export default function PatientHistoryPage() {
       }
     }
   }
+
+  const renderExerciseInput = (ex: ExerciseItem, idx: number) => {
+    const stateKey = ex.id || ex.title || `idx_${idx}`
+    const isHighlighted = profTrackingModal?.initialExerciseKey === stateKey
+
+    return (
+      <div key={stateKey} className={cn(
+        "border rounded-xl p-4 space-y-3 transition-all duration-500",
+        isHighlighted
+          ? "border-blue-400 bg-blue-50/50 shadow-md ring-2 ring-blue-500/20 translate-x-1"
+          : "border-slate-200 bg-white"
+      )}>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setProfTrackingForm(prev => ({ ...prev, [stateKey]: { ...prev[stateKey], completed: !prev[stateKey]?.completed } }))}
+            className={`w-6 h-6 rounded-lg flex items-center justify-center transition-all ${profTrackingForm[stateKey]?.completed
+              ? 'bg-emerald-500 text-white shadow-md shadow-emerald-500/20'
+              : 'bg-slate-100 text-slate-300 hover:bg-slate-200'
+              }`}
+          >
+            <CheckCircle2 className="h-4 w-4" />
+          </button>
+          <div className="flex-1">
+            <p className="text-sm font-bold text-slate-800">
+              {ex.title || (ex as any).name || (ex as any).nombre || (ex as any).ejercicio || `Ejercicio`}
+              {isHighlighted && <Badge variant="secondary" className="ml-2 text-[8px] bg-blue-100 text-blue-700 border-none px-1 h-3.5 uppercase font-black">Seleccionado</Badge>}
+            </p>
+            {ex.setsReps && <p className="text-[10px] text-indigo-500 font-semibold">{ex.setsReps}</p>}
+          </div>
+        </div>
+        <div className="grid grid-cols-2 gap-2">
+          <div>
+            <label className="text-[10px] font-bold text-slate-400 uppercase mb-0.5 block">Peso (kg)</label>
+            <Input
+              autoFocus={isHighlighted}
+              value={profTrackingForm[stateKey]?.weight || ''}
+              onChange={e => setProfTrackingForm(prev => ({ ...prev, [stateKey]: { ...prev[stateKey], weight: e.target.value } }))}
+              placeholder="Ej: 15"
+              className={cn("h-8 text-sm", isHighlighted && "border-blue-300 focus:ring-blue-500")}
+            />
+          </div>
+          <div>
+            <label className="text-[10px] font-bold text-slate-400 uppercase mb-0.5 block">Duración</label>
+            <Input
+              value={profTrackingForm[stateKey]?.duration || ''}
+              onChange={e => setProfTrackingForm(prev => ({ ...prev, [stateKey]: { ...prev[stateKey], duration: e.target.value } }))}
+              placeholder="Ej: 10 min"
+              className={cn("h-8 text-sm", isHighlighted && "border-blue-300 focus:ring-blue-500")}
+            />
+          </div>
+        </div>
+        <div>
+          <label className="text-[10px] font-bold text-slate-400 uppercase mb-0.5 block">Observaciones por Ejercicio</label>
+          <Textarea
+            value={profTrackingForm[stateKey]?.notes || ''}
+            onChange={e => setProfTrackingForm(prev => ({ ...prev, [stateKey]: { ...prev[stateKey], notes: e.target.value } }))}
+            placeholder="Ej: Molestia leve, buena técnica..."
+            className={cn("min-h-[40px] text-sm resize-none", isHighlighted && "border-blue-300 focus:ring-blue-500")}
+          />
+        </div>
+      </div>
+    )
+  }
   // State
   const [activeCategory, setActiveCategory] = useState<string>("Kinesiología")
   const [editingEntry, setEditingEntry] = useState<any>(null) // New state for editing
   const [isNewEntryOpen, setIsNewEntryOpen] = useState(false)
   const [selectedFormType, setSelectedFormType] = useState<ClinicalFormType | null>(null)
 
+  // Professional Tracking Modal State
+  const [profTrackingModal, setProfTrackingModal] = useState<{
+    routineId: string;
+    routineName: string;
+    days: RoutineDay[];
+    initialDayIdx?: number;
+    initialExerciseKey?: string;
+    serviceCategory?: string;
+  } | null>(null)
+  const [profTrackingForm, setProfTrackingForm] = useState<Record<string, { completed: boolean, weight: string, duration: string, notes: string }>>({})
+  const [profSessionNotes, setProfSessionNotes] = useState("")
+
+  const saveProfTracking = async () => {
+    if (!profTrackingModal || !client) return
+
+    const dayIdx = profTrackingModal.initialDayIdx || 0
+    const selectedDay = profTrackingModal.days[dayIdx]
+
+    // Flatten all exercises
+    const allExercises: ExerciseItem[] = []
+    if (selectedDay.blocks) {
+      selectedDay.blocks.forEach(b => allExercises.push(...b.exercises))
+    }
+    if (selectedDay.exercises) {
+      allExercises.push(...selectedDay.exercises)
+    }
+
+    const exerciseData = allExercises.map((ex, idx) => {
+      const stateKey = ex.id || ex.title || `idx_${idx}`
+      const formData = profTrackingForm[stateKey] || {}
+
+      return {
+        exerciseId: ex.id,
+        title: ex.title || (ex as any).name || (ex as any).nombre || (ex as any).ejercicio || "Ejercicio",
+        completed: formData.completed || false,
+        weight: formData.weight || '',
+        duration: formData.duration || '',
+        notes: formData.notes || ''
+      }
+    })
+
+    const newEntry = {
+      clientId: client.id,
+      professionalId: currentUser?.professionalId || null,
+      serviceCategory: profTrackingModal.serviceCategory || activeCategory || 'Kinesiología',
+      formType: 'exercise_log' as ClinicalFormType,
+      attentionDate: new Date(),
+      content: {
+        routineId: profTrackingModal.routineId,
+        dayName: selectedDay.name,
+        notes: profSessionNotes,
+        exercises: exerciseData
+      }
+    }
+
+    try {
+      await saveClinicalEntry(newEntry as any)
+      toast.success("Sesión registrada exitosamente")
+      setProfTrackingModal(null)
+      setProfTrackingForm({}) // Reset form
+      setProfSessionNotes("") // Reset notes
+      loadClinicalEntries(client.id)
+    } catch (error) {
+      console.error("Error saving tracking:", error)
+      toast.error("Error al registrar la sesión")
+    }
+  }
+
   // Find Client and Record
   const client = clients.find((c) => c.id === clientId)
   const record = medicalRecords.find((r) => r.clientId === clientId)
+
+  const selectedDayForTracking = profTrackingModal ? profTrackingModal.days[profTrackingModal.initialDayIdx || 0] : null
 
   // Helper to get the effective config (dynamic OR default)
   const getEffectiveConfig = (type: ClinicalFormType): Partial<ClinicalFormConfig> => {
@@ -371,6 +506,51 @@ export default function PatientHistoryPage() {
                             allEntries={clinicalEntries}
                             onEdit={handleEdit}
                             onDeleteLog={handleDeleteExerciseLog}
+                            onRegisterProfSession={(item, typeInfo, dayIdx, exKey) => {
+                              // Support multiple formats for exercises
+                              let routineDays: RoutineDay[] = [];
+                              const rawContent = item.content || item;
+
+                              if (rawContent.exercise_days) {
+                                routineDays = rawContent.exercise_days;
+                              } else if (rawContent.exerciseList || rawContent.exercise_list) {
+                                const list = rawContent.exerciseList || rawContent.exercise_list;
+                                if (Array.isArray(list) && list.length > 0) {
+                                  const first = list[0];
+                                  const isDailyList = 'exercises' in first || 'blocks' in first;
+
+                                  if (isDailyList) {
+                                    routineDays = list.map((d: any) => ({ ...d, blocks: d.blocks || [], exercises: d.exercises || [] }));
+                                  } else {
+                                    // Wrap flat list into a single day
+                                    routineDays = [{
+                                      id: '1',
+                                      name: 'Rutina',
+                                      exercises: list,
+                                      blocks: []
+                                    }];
+                                  }
+                                }
+                              } else if (rawContent.exercises) {
+                                routineDays = [{
+                                  id: '1',
+                                  name: 'Día 1',
+                                  exercises: rawContent.exercises,
+                                  blocks: []
+                                }];
+                              }
+
+                              const realDayIdx = dayIdx !== undefined ? dayIdx : 0;
+
+                              setProfTrackingModal({
+                                routineId: item.id,
+                                routineName: item.name || item.title || typeInfo.label,
+                                days: routineDays,
+                                initialDayIdx: realDayIdx,
+                                initialExerciseKey: exKey,
+                                serviceCategory: typeInfo.category
+                              });
+                            }}
                           />
                         ))}
                       </div>
@@ -456,8 +636,6 @@ export default function PatientHistoryPage() {
                   visibleToPatient: true, // Always true at record level? Or form value overrides? usually record level default
                   content: values, // Store all form values in content
                   templateSnapshot: editingEntry ? editingEntry.templateSnapshot : getEffectiveConfig(selectedFormType), // Keep original template if editing? Or update? Let's keep original unless we have versioning. Actually for now update it to current config is safer if fields changed.
-                  bodyMap: values.bodyZones || {},
-                  adherence: values.adherence || {},
                   createdAt: editingEntry ? editingEntry.createdAt : new Date(),
                   updatedAt: new Date()
                 }
@@ -472,6 +650,105 @@ export default function PatientHistoryPage() {
           }
         </DialogContent >
       </Dialog >
+
+      {/* PROFESSIONAL TRACKING MODAL */}
+      <Dialog open={!!profTrackingModal} onOpenChange={(open) => !open && setProfTrackingModal(null)}>
+        <DialogContent className="max-w-2xl max-h-[90vh] flex flex-col p-0 gap-0 overflow-hidden">
+          <DialogHeader className="p-4 border-b shrink-0 bg-blue-600 text-white">
+            <DialogTitle className="flex items-center gap-2 text-white">
+              <Dumbbell className="h-5 w-5" />
+              {profTrackingModal?.routineName}
+            </DialogTitle>
+            <DialogDescription className="text-blue-100 italic">
+              Registrando sesión profesional para {client?.name} — {selectedDayForTracking?.name || 'Cargando...'}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="flex-1 overflow-y-auto p-4 bg-slate-50/50 space-y-4">
+            {/* Day Selection (if multiple) */}
+            {profTrackingModal && profTrackingModal.days.length > 1 && (
+              <div className="flex items-center gap-1.5 flex-wrap bg-white p-2 rounded-xl border border-slate-200 shadow-sm">
+                {profTrackingModal.days.map((day, idx) => (
+                  <button
+                    key={day.id || idx}
+                    type="button"
+                    onClick={() => setProfTrackingModal({ ...profTrackingModal, initialDayIdx: idx })}
+                    className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-tight transition-all ${idx === (profTrackingModal.initialDayIdx || 0)
+                      ? 'bg-blue-600 text-white shadow-md'
+                      : 'bg-slate-50 text-slate-400 hover:bg-slate-100 hover:text-slate-600'
+                      }`}
+                  >
+                    {day.name}
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {/* General Notes */}
+            <div className="space-y-1.5">
+              <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Observaciones de la Sesión</Label>
+              <Textarea
+                placeholder="Estado general del paciente, cumplimiento global, etc."
+                value={profSessionNotes}
+                onChange={e => setProfSessionNotes(e.target.value)}
+                className="min-h-[80px] bg-white text-sm border-slate-200 focus:border-blue-500 shadow-sm rounded-xl"
+              />
+            </div>
+
+            <Separator className="bg-slate-200" />
+
+            {/* Exercises */}
+            <div className="space-y-4">
+              <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Ejercicios Realizados</h4>
+
+              {(() => {
+                if (!selectedDayForTracking) return <p className="text-xs text-slate-400 italic">No hay ejercicios definidos para este día.</p>
+
+                return (
+                  <div className="space-y-4">
+                    {/* Render Blocks */}
+                    {selectedDayForTracking.blocks?.map(block => (
+                      <div key={block.id} className="space-y-2">
+                        <div className="flex items-center gap-2 bg-slate-100 px-3 py-1.5 rounded-lg border border-slate-200">
+                          <h5 className="text-[10px] font-black text-slate-700 uppercase">{block.title}</h5>
+                          {block.type === 'circuit' && <Badge variant="secondary" className="text-[8px] h-4 bg-indigo-100 text-indigo-700 border-none font-bold">CIRCUITO</Badge>}
+                        </div>
+                        <div className="space-y-3">
+                          {block.exercises.map((ex, i) => renderExerciseInput(ex, i))}
+                        </div>
+                      </div>
+                    ))}
+
+                    {/* Render Legacy/Loose Exercises */}
+                    {selectedDayForTracking.exercises && selectedDayForTracking.exercises.length > 0 && (
+                      <div className="space-y-2">
+                        {selectedDayForTracking.blocks && selectedDayForTracking.blocks.length > 0 && (
+                          <div className="flex items-center gap-2 bg-slate-100 px-3 py-1.5 rounded-lg border border-slate-200">
+                            <h5 className="text-[10px] font-black text-slate-700 uppercase">Otros Ejercicios</h5>
+                          </div>
+                        )}
+                        <div className="space-y-3">
+                          {selectedDayForTracking.exercises.map((ex, i) => renderExerciseInput(ex, i))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )
+              })()}
+            </div>
+          </div>
+
+          <div className="p-4 border-t bg-white shrink-0">
+            <Button
+              className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-black uppercase tracking-widest h-11 shadow-lg shadow-emerald-500/20 rounded-xl"
+              onClick={saveProfTracking}
+            >
+              <CheckCircle2 className="h-4 w-4 mr-2" />
+              Guardar Registro de Sesión
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div >
   )
 }
@@ -1372,7 +1649,15 @@ function RenderFieldInput({ field, value, onChange, serviceType }: { field: any,
 
 
 // 2. FICHA DISPLAY COMPONENT (The Card in the list)
-function FichaDisplay({ item, config, typeInfo, allEntries, onEdit, onDeleteLog }: { item: any, config: Partial<ClinicalFormConfig>, typeInfo: any, allEntries?: any[], onEdit: (item: any) => void, onDeleteLog?: (id: string) => void }) {
+function FichaDisplay({ item, config, typeInfo, allEntries, onEdit, onDeleteLog, onRegisterProfSession }: {
+  item: any,
+  config: Partial<ClinicalFormConfig>,
+  typeInfo: any,
+  allEntries?: any[],
+  onEdit: (item: any) => void,
+  onDeleteLog?: (id: string) => void,
+  onRegisterProfSession?: (item: any, typeInfo: any, dayIdx?: number, exerciseKey?: string) => void
+}) {
   const [isOpen, setIsOpen] = useState(false)
 
   // Sort sections
@@ -1469,22 +1754,59 @@ function FichaDisplay({ item, config, typeInfo, allEntries, onEdit, onDeleteLog 
                                       </span>
                                     )}
                                   </div>
-                                  {block.exercises?.map((ex: any, i: number) => (
-                                    <div key={i} className="flex items-center gap-1.5 mb-1 ml-1">
-                                      <div className="w-3 h-3 rounded-full bg-slate-200 text-slate-500 flex items-center justify-center text-[8px] font-bold">{i + 1}</div>
-                                      <span className="text-[10px] font-medium text-slate-600 truncate max-w-[180px]">{ex.title}</span>
-                                    </div>
-                                  ))}
+                                  {block.exercises?.map((ex: any, i: number) => {
+                                    const exKey = ex.id || ex.title || `idx_${i}`
+                                    return (
+                                      <div key={i} className="flex items-center justify-between mb-1 ml-1 group/ex">
+                                        <div className="flex items-center gap-1.5 flex-1 min-w-0">
+                                          <div className="w-3 h-3 rounded-full bg-slate-200 text-slate-500 flex items-center justify-center text-[8px] font-bold shrink-0">{i + 1}</div>
+                                          <span className="text-[10px] font-medium text-slate-600 truncate max-w-[150px]">{ex.title}</span>
+                                        </div>
+                                        {onRegisterProfSession && (
+                                          <Button
+                                            variant="ghost"
+                                            size="icon"
+                                            className="h-5 w-5 text-slate-300 hover:text-blue-600 hover:bg-blue-50 opacity-0 group-hover/ex:opacity-100 transition-all shrink-0"
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              onRegisterProfSession(item, typeInfo, dIdx, exKey);
+                                            }}
+                                            title="Registrar evolución"
+                                          >
+                                            <CirclePlus className="h-3 w-3" />
+                                          </Button>
+                                        )}
+                                      </div>
+                                    )
+                                  })}
                                 </div>
                               ))}
 
                               {/* Legacy Exercises */}
-                              {day.exercises?.map((ex: any, i: number) => (
-                                <div key={i} className="bg-slate-50 rounded-md p-1.5 border border-slate-100 ml-1 mb-1 flex items-center gap-1.5">
-                                  <div className="w-3 h-3 rounded-full bg-primary/10 text-primary flex items-center justify-center text-[8px] font-bold">{i + 1}</div>
-                                  <span className="text-[10px] font-medium text-slate-600 truncate max-w-[200px]">{ex.title}</span>
-                                </div>
-                              ))}
+                              {day.exercises?.map((ex: any, i: number) => {
+                                const exKey = ex.id || ex.title || `idx_${i}`
+                                return (
+                                  <div key={i} className="bg-slate-50 rounded-md p-1.5 border border-slate-100 ml-1 mb-1 flex items-center justify-between group/exec">
+                                    <div className="flex items-center gap-1.5 flex-1 min-w-0">
+                                      <div className="w-3 h-3 rounded-full bg-primary/10 text-primary flex items-center justify-center text-[8px] font-bold shrink-0">{i + 1}</div>
+                                      <span className="text-[10px] font-medium text-slate-600 truncate max-w-[170px]">{ex.title}</span>
+                                    </div>
+                                    {onRegisterProfSession && (
+                                      <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        className="h-5 w-5 text-slate-300 hover:text-blue-600 hover:bg-blue-50 opacity-0 group-hover/exec:opacity-100 transition-all"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          onRegisterProfSession(item, typeInfo, dIdx, exKey);
+                                        }}
+                                      >
+                                        <CirclePlus className="h-3 w-3" />
+                                      </Button>
+                                    )}
+                                  </div>
+                                )
+                              })}
                             </div>
                           ))}
                         </div>
@@ -1495,10 +1817,26 @@ function FichaDisplay({ item, config, typeInfo, allEntries, onEdit, onDeleteLog 
                       return (
                         <div key={field.id} className="space-y-2">
                           {val.map((ex: any, i: number) => (
-                            <div key={i} className="bg-slate-50 rounded-md p-2 border border-slate-100">
-                              <div className="flex items-center gap-1.5 mb-1">
-                                <div className="w-4 h-4 rounded-full bg-primary/10 text-primary flex items-center justify-center text-[9px] font-bold">{i + 1}</div>
-                                <span className="text-xs font-semibold text-slate-700">{ex.title || `Ejercicio ${i + 1}`}</span>
+                            <div key={i} className="bg-slate-50 rounded-md p-2 border border-slate-100 group/exlist">
+                              <div className="flex items-center justify-between mb-1">
+                                <div className="flex items-center gap-1.5 min-w-0">
+                                  <div className="w-4 h-4 rounded-full bg-primary/10 text-primary flex items-center justify-center text-[9px] font-bold shrink-0">{i + 1}</div>
+                                  <span className="text-xs font-semibold text-slate-700 truncate max-w-[200px]">{ex.title || `Ejercicio ${i + 1}`}</span>
+                                </div>
+                                {onRegisterProfSession && (
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-5 w-5 text-slate-300 hover:text-blue-600 hover:bg-blue-50 opacity-0 group-hover/exlist:opacity-100 transition-all"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      const exKey = ex.id || ex.title || `idx_${i}`;
+                                      onRegisterProfSession(item, typeInfo, 0, exKey);
+                                    }}
+                                  >
+                                    <CirclePlus className="h-3 w-3" />
+                                  </Button>
+                                )}
                               </div>
                               {ex.setsReps && (
                                 <div className="ml-5.5 mb-2 mt-1">
@@ -1620,11 +1958,24 @@ function FichaDisplay({ item, config, typeInfo, allEntries, onEdit, onDeleteLog 
                       {log.content?.notes && (
                         <p className="text-[11px] text-slate-600 line-clamp-2 italic italic-slate-500">"{log.content.notes}"</p>
                       )}
-                      <div className="mt-1 flex flex-wrap gap-1">
-                        {log.content?.exercises?.filter((ex: any) => ex.completed).map((ex: any, exIdx: number) => (
-                          <Badge key={exIdx} variant="outline" className="text-[8px] py-0 px-1 bg-white text-emerald-600 border-emerald-100 uppercase">
-                            ✓ {ex.title || "Ej."}
-                          </Badge>
+                      <div className="mt-1 flex flex-col gap-1">
+                        {log.content?.exercises?.filter((ex: any) => ex.completed || ex.weight || ex.duration || ex.notes || ex.peso || ex.duracion || ex.notas).map((ex: any, exIdx: number) => (
+                          <div key={exIdx} className="flex flex-wrap items-center gap-1">
+                            {ex.completed ? (
+                              <Badge variant="outline" className="text-[8px] py-0 px-1 bg-white text-emerald-600 border-emerald-100 uppercase">
+                                ✓ {ex.title || (ex as any).name || (ex as any).nombre || (ex as any).ejercicio || "Ej."}
+                              </Badge>
+                            ) : (
+                              <span className="text-[9px] font-bold text-slate-500">{ex.title || (ex as any).name || (ex as any).nombre || (ex as any).ejercicio || "Ej."}:</span>
+                            )}
+                            {(ex.weight || ex.duration || ex.peso || ex.duracion) && (
+                              <span className="text-[8px] text-blue-600 font-black bg-blue-50/50 px-1 rounded">
+                                {(ex.weight || ex.peso) && `${ex.weight || ex.peso}kg`}
+                                {(ex.duration || ex.duracion) && ` [${ex.duration || ex.duracion}]`}
+                              </span>
+                            )}
+                            {(ex.notes || ex.notas) && <span className="text-[8px] text-slate-400 italic truncate max-w-[150px]">"{ex.notes || ex.notas}"</span>}
+                          </div>
                         ))}
                       </div>
                     </div>
@@ -1712,12 +2063,27 @@ function FichaDisplay({ item, config, typeInfo, allEntries, onEdit, onDeleteLog 
                                           <div className="w-6 h-6 rounded-full bg-white border border-slate-200 text-slate-500 flex items-center justify-center text-xs font-bold shrink-0 shadow-sm mt-0.5">{i + 1}</div>
                                           <div className="flex-1 space-y-2">
                                             <div className="flex justify-between items-start gap-2">
-                                              <span className="text-sm font-bold text-slate-700 leading-tight">{ex.title}</span>
-                                              {ex.setsReps && (
-                                                <Badge variant="outline" className="bg-white whitespace-nowrap text-[10px] font-bold text-slate-600 border-slate-200">
-                                                  {ex.setsReps}
-                                                </Badge>
-                                              )}
+                                              <span className="text-sm font-bold text-slate-700 leading-tight">{ex.title || (ex as any).name || (ex as any).nombre || (ex as any).ejercicio}</span>
+                                              <div className="flex items-center gap-1">
+                                                {ex.setsReps && (
+                                                  <Badge variant="outline" className="bg-white whitespace-nowrap text-[10px] font-bold text-slate-600 border-slate-200">
+                                                    {ex.setsReps}
+                                                  </Badge>
+                                                )}
+                                                {onRegisterProfSession && (
+                                                  <Button
+                                                    size="sm"
+                                                    variant="ghost"
+                                                    className="h-6 px-1.5 text-[9px] font-black uppercase text-blue-600 hover:bg-blue-50 hover:text-blue-700 transition-all gap-1"
+                                                    onClick={() => {
+                                                      const exKey = ex.id || ex.title || `idx_${i}`
+                                                      onRegisterProfSession(item, typeInfo, dIdx, exKey);
+                                                    }}
+                                                  >
+                                                    <Plus className="h-3 w-3" /> Registrar
+                                                  </Button>
+                                                )}
+                                              </div>
                                             </div>
                                             {ex.description && <p className="text-xs text-slate-600 leading-relaxed bg-white/50 p-2 rounded border border-slate-100/50">{ex.description}</p>}
                                             {/* Video & Notes */}
@@ -1760,12 +2126,26 @@ function FichaDisplay({ item, config, typeInfo, allEntries, onEdit, onDeleteLog 
                                         <div className="flex items-center gap-2 bg-slate-50 px-4 py-2 border-b border-slate-100">
                                           <div className="w-6 h-6 rounded-full bg-primary/10 text-primary flex items-center justify-center text-xs font-bold">{i + 1}</div>
                                           <span className="text-sm font-bold text-slate-800">{ex.title || `Ejercicio ${i + 1}`}</span>
-                                          {ex.setsReps && (
-                                            <div className="ml-auto px-2.5 py-1 rounded-full bg-primary text-white text-xs font-bold leading-none shadow-sm flex items-center gap-1">
-                                              <Repeat className="h-3 w-3" />
-                                              {ex.setsReps}
-                                            </div>
-                                          )}
+                                          <div className="ml-auto flex items-center gap-2">
+                                            {ex.setsReps && (
+                                              <div className="px-2.5 py-1 rounded-full bg-primary text-white text-xs font-bold leading-none shadow-sm flex items-center gap-1">
+                                                <Repeat className="h-3 w-3" />
+                                                {ex.setsReps}
+                                              </div>
+                                            )}
+                                            {onRegisterProfSession && (
+                                              <Button
+                                                size="sm"
+                                                className="h-7 bg-blue-600 hover:bg-blue-700 text-white font-bold text-[10px] uppercase gap-1 shadow-sm px-2"
+                                                onClick={() => {
+                                                  const exKey = ex.id || ex.title || `idx_${i}`
+                                                  onRegisterProfSession(item, typeInfo, dIdx, exKey);
+                                                }}
+                                              >
+                                                <Plus className="h-3.5 w-3.5" /> Registrar Sesión
+                                              </Button>
+                                            )}
+                                          </div>
                                         </div>
                                         <div className="p-4 space-y-3">
                                           {ex.description && (
@@ -1789,7 +2169,10 @@ function FichaDisplay({ item, config, typeInfo, allEntries, onEdit, onDeleteLog 
                                             )
                                           })()}
                                           {ex.notes && (
-                                            <div className="text-xs text-slate-500 italic bg-amber-50 p-2 rounded-md border border-amber-100">📝 {ex.notes}</div>
+                                            <div className="text-xs text-amber-600 italic bg-amber-50 p-2 rounded-md border border-amber-100">📝 {ex.notes}</div>
+                                          )}
+                                          {ex.observation && (
+                                            <div className="text-xs text-slate-500 italic bg-slate-50 p-2 rounded-md border border-slate-100 whitespace-pre-wrap">🗨️ {ex.observation}</div>
                                           )}
                                         </div>
                                       </div>
@@ -1840,7 +2223,10 @@ function FichaDisplay({ item, config, typeInfo, allEntries, onEdit, onDeleteLog 
                                   )
                                 })()}
                                 {ex.notes && (
-                                  <div className="text-xs text-slate-500 italic bg-amber-50 p-2 rounded-md border border-amber-100">📝 {ex.notes}</div>
+                                  <div className="text-xs text-amber-600 italic bg-amber-50 p-2 rounded-md border border-amber-100">📝 {ex.notes}</div>
+                                )}
+                                {ex.observation && (
+                                  <div className="text-xs text-slate-500 italic bg-slate-50 p-2 rounded-md border border-slate-100 whitespace-pre-wrap">🗨️ {ex.observation}</div>
                                 )}
                               </div>
                             </div>
@@ -1906,6 +2292,19 @@ function FichaDisplay({ item, config, typeInfo, allEntries, onEdit, onDeleteLog 
                 <HistoryIcon className="h-4 w-4 text-blue-500" />
                 Sesiones Realizadas por el Paciente
               </h4>
+              <div className="flex justify-end mb-2">
+                <Button
+                  size="sm"
+                  className="bg-blue-600 hover:bg-blue-700 text-white font-bold gap-2 shadow-sm"
+                  onClick={() => {
+                    if (onRegisterProfSession) {
+                      onRegisterProfSession(item, typeInfo);
+                    }
+                  }}
+                >
+                  <Plus className="h-4 w-4" /> Registrar Sesión Profesional
+                </Button>
+              </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {allEntries
                   .filter(e => {
@@ -1943,9 +2342,9 @@ function FichaDisplay({ item, config, typeInfo, allEntries, onEdit, onDeleteLog 
                         </div>
                       </div>
 
-                      {log.content?.notes && (
+                      {(log.content?.notes || log.content?.notesForSession) && (
                         <div className="bg-white/80 rounded-lg p-3 border border-blue-50 mb-3 shadow-inner">
-                          <p className="text-xs text-slate-600 italic">" {log.content.notes} "</p>
+                          <p className="text-xs text-slate-600 italic">" {log.content.notes || log.content.notesForSession} "</p>
                         </div>
                       )}
 
@@ -1962,10 +2361,23 @@ function FichaDisplay({ item, config, typeInfo, allEntries, onEdit, onDeleteLog 
                               <span className={cn("text-xs font-semibold", ex.completed ? "text-slate-700" : "text-slate-400")}>
                                 {ex.title || `Ejercicio ${exIdx + 1}`}
                               </span>
-                              {(ex.weight || ex.duration) && (
-                                <div className="flex gap-2 mt-0.5">
-                                  {ex.weight && <span className="text-[10px] text-blue-600 font-bold bg-blue-50 px-1.5 rounded">📦 {ex.weight}</span>}
-                                  {ex.duration && <span className="text-[10px] text-amber-600 font-bold bg-amber-50 px-1.5 rounded">⏱️ {ex.duration}</span>}
+                              {(ex.weight || ex.duration || ex.notes || ex.peso || ex.duracion || ex.notas) && (
+                                <div className="flex flex-wrap gap-2 mt-1">
+                                  {(ex.weight || ex.peso) && (
+                                    <span className="text-[10px] text-blue-700 font-bold bg-blue-50 px-2 py-0.5 rounded-md border border-blue-100 flex items-center gap-1">
+                                      <Dumbbell className="h-3 w-3" /> {ex.weight || ex.peso}kg
+                                    </span>
+                                  )}
+                                  {(ex.duration || ex.duracion) && (
+                                    <span className="text-[10px] text-amber-700 font-bold bg-amber-50 px-2 py-0.5 rounded-md border border-amber-100 flex items-center gap-1">
+                                      <Clock className="h-3 w-3" /> {ex.duration || ex.duracion}
+                                    </span>
+                                  )}
+                                  {(ex.notes || ex.notas) && (
+                                    <span className="text-[10px] text-slate-500 italic bg-slate-50 px-2 py-0.5 rounded-md border border-slate-100 w-full mt-0.5">
+                                      📝 "{ex.notes || ex.notas}"
+                                    </span>
+                                  )}
                                 </div>
                               )}
                             </div>
