@@ -37,6 +37,7 @@ export default function MiCuentaPage() {
   const [activeTab, setActiveTab] = useState("inicio")
   const [record, setRecord] = useState<any>(null)
   const [trainingEntries, setTrainingEntries] = useState<any[]>([])
+  const [yogaEntries, setYogaEntries] = useState<any[]>([])
   const [kineEntries, setKineEntries] = useState<any[]>([])
   const [clinicalTreatments, setClinicalTreatments] = useState<any[]>([])
   const [clinicalMassages, setClinicalMassages] = useState<any[]>([])
@@ -55,6 +56,7 @@ export default function MiCuentaPage() {
       }
       loadClinicalEntries(client.id).then(entries => {
         setTrainingEntries(entries.filter((e: any) => e.formType === 'training_routine'))
+        setYogaEntries(entries.filter((e: any) => e.formType === 'yoga_routine'))
         setKineEntries(entries.filter((e: any) => e.formType === 'kine_home'))
 
         // Map clinical entries to the internal format expected by the timeline
@@ -232,6 +234,7 @@ export default function MiCuentaPage() {
   }
 
   const processedTraining = processEntriesToRoutines(trainingEntries)
+  const processedYoga = processEntriesToRoutines(yogaEntries)
   const processedKine = processEntriesToRoutines(kineEntries)
 
   // Helper to group by month
@@ -245,6 +248,7 @@ export default function MiCuentaPage() {
   }
 
   const trainingByMonth = groupByMonth(processedTraining)
+  const yogaByMonth = groupByMonth(processedYoga)
   const kineByMonth = groupByMonth(processedKine)
 
   const getSortedMonths = (grouped: Record<string, any[]>) => {
@@ -256,6 +260,7 @@ export default function MiCuentaPage() {
   }
 
   const trainingMonths = getSortedMonths(trainingByMonth)
+  const yogaMonths = getSortedMonths(yogaByMonth)
   const kineMonths = getSortedMonths(kineByMonth)
 
   const getLogsForDay = (routineId: string, dayId: string) => {
@@ -1784,7 +1789,7 @@ export default function MiCuentaPage() {
               </div>
             </div>
 
-            {visibleYogaSessions.length === 0 ? (
+            {yogaMonths.length === 0 ? (
               <div className="bg-white rounded-[3rem] border-2 border-dashed border-slate-200 p-20 text-center">
                 <div className="h-20 w-20 mx-auto rounded-full bg-slate-50 flex items-center justify-center mb-6">
                   <Flower2 className="h-10 w-10 text-slate-200" />
@@ -1793,55 +1798,183 @@ export default function MiCuentaPage() {
                 <p className="text-slate-400 mt-2 max-w-sm mx-auto font-medium">Tus clases de yoga y progresos en asanas aparecerán aquí.</p>
               </div>
             ) : (
-              <div className="grid gap-10">
-                {visibleYogaSessions.map((yoga: any, yIdx: number) => (
-                  <Card key={yoga.id} className="border-none shadow-md rounded-2xl overflow-hidden bg-white/70 backdrop-blur-xl border border-white group">
-                    <CardHeader className="p-5 pb-1 flex flex-row items-center justify-between border-none">
-                      <div className="flex items-center gap-3">
-                        <div className="h-9 w-9 rounded-xl bg-indigo-50 flex items-center justify-center text-indigo-600 shadow-inner group-hover:rotate-12 transition-transform duration-700">
-                          <Calendar className="h-4 w-4" />
-                        </div>
-                        <div>
-                          <CardTitle className="text-lg font-black text-slate-900 tracking-tight">Fluidez Consciente</CardTitle>
-                          <CardDescription className="text-[10px] font-bold text-slate-400 mt-0.5">
-                            {format(new Date(yoga.date), "dd 'de' MMMM, yyyy", { locale: es })}
-                          </CardDescription>
-                        </div>
-                      </div>
-                    </CardHeader>
-                    <CardContent className="p-5 pt-2">
-                      <div className="grid grid-cols-1 lg:grid-cols-12 gap-10">
-                        <div className="lg:col-span-7 space-y-8">
-                          {yoga.notes && (
-                            <div className="p-10 bg-indigo-900 rounded-[2.5rem] shadow-2xl relative overflow-hidden group/notes">
-                              <div className="absolute -bottom-10 -right-10 h-32 w-32 bg-white/10 rounded-full blur-2xl group-hover/notes:scale-150 transition-transform duration-1000" />
-                              <p className="text-[10px] font-black text-indigo-300 uppercase tracking-[0.2em] mb-4">Bitácora de Práctica</p>
-                              <p className="text-slate-100 text-lg font-medium leading-relaxed">
-                                "{yoga.notes}"
-                              </p>
-                            </div>
-                          )}
-                        </div>
+              <Tabs defaultValue={yogaMonths[0]} className="w-full">
+                <div className="flex items-center justify-between mb-4 overflow-x-auto pb-2 scrollbar-hide">
+                  <TabsList className="bg-transparent p-0 h-auto gap-2">
+                    {yogaMonths.map(month => (
+                      <TabsTrigger
+                        key={month}
+                        value={month}
+                        className="data-[state=active]:bg-indigo-600 data-[state=active]:text-white data-[state=active]:shadow-lg bg-white text-slate-500 border border-slate-200/50 rounded-xl px-4 py-2 font-bold text-xs transition-all tracking-wide"
+                      >
+                        {month}
+                      </TabsTrigger>
+                    ))}
+                  </TabsList>
+                </div>
 
-                        <div className="lg:col-span-5 space-y-8">
-                          {yoga.poses && yoga.poses.length > 0 && (
-                            <div className="p-8 bg-slate-50 rounded-[2.5rem] border border-slate-100">
-                              <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-6">Asanas Destacadas</p>
-                              <div className="flex flex-wrap gap-3">
-                                {yoga.poses.map((pose: string, i: number) => (
-                                  <Badge key={i} className="bg-white text-indigo-600 border border-indigo-100 hover:bg-indigo-600 hover:text-white transition-all duration-500 font-black px-5 py-2 rounded-2xl shadow-sm text-xs cursor-default">
-                                    {pose}
+                {yogaMonths.map(month => (
+                  <TabsContent key={month} value={month} className="space-y-6">
+                    {yogaByMonth[month].map((routine: any) => {
+                      const currentDayIdx = activeDayIndex[routine.id] || 0
+                      const currentDay = routine.days[currentDayIdx]
+                      const dayLogs = currentDay ? getLogsForDay(routine.id, currentDay.id) : []
+
+                      return (
+                        <Card key={routine.id} className="border-none shadow-xl shadow-slate-200/60 rounded-3xl overflow-hidden bg-white/80 backdrop-blur-xl border border-white/40 group">
+                          <CardHeader className="bg-gradient-to-br from-indigo-50 to-white p-5 border-b border-indigo-50/50">
+                            <div className="flex flex-col md:flex-row justify-between items-start gap-4">
+                              <div className="flex items-start gap-3">
+                                <div className="h-10 w-10 shrink-0 rounded-2xl bg-indigo-100 flex items-center justify-center text-indigo-600 shadow-sm">
+                                  <Flower2 className="h-5 w-5" />
+                                </div>
+                                <div>
+                                  <div className="flex items-center gap-2">
+                                    <CardTitle className="text-lg font-black text-slate-900 tracking-tight leading-tight">{routine.name}</CardTitle>
+                                    {routine.month && routine.month !== 'General' && (
+                                      <Badge variant="outline" className="text-[9px] border-indigo-500/50 text-indigo-500 uppercase tracking-wider">
+                                        {routine.month}
+                                      </Badge>
+                                    )}
+                                  </div>
+                                  <CardDescription className="text-slate-400 font-bold uppercase tracking-widest text-[8px] mt-0.5">Iniciado {format(new Date(routine.date), "dd/MM/yyyy")}</CardDescription>
+                                </div>
+                              </div>
+                              <div className="flex flex-col items-center md:items-end gap-1.5 ml-auto">
+                                {routine.objective && (
+                                  <Badge className="bg-indigo-500 text-white border-none font-black px-3 py-1 rounded-lg shadow-lg shadow-indigo-500/20 uppercase text-[8px] tracking-widest">
+                                    {routine.objective}
                                   </Badge>
-                                ))}
+                                )}
+                                <span className="text-[8px] font-black text-slate-400 uppercase tracking-wider">{routine.days.length} dia{routine.days.length !== 1 ? 's' : ''}</span>
                               </div>
                             </div>
-                          )}
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
+                          </CardHeader>
+                          <CardContent className="p-0">
+                            {/* DAY TABS */}
+                            <div className="flex items-center gap-1 flex-wrap bg-slate-50 p-2 border-b border-slate-100">
+                              {routine.days.map((day: RoutineDay, dIdx: number) => (
+                                <button
+                                  key={day.id}
+                                  onClick={() => setActiveDayIndex(prev => ({ ...prev, [routine.id]: dIdx }))}
+                                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${dIdx === currentDayIdx
+                                    ? 'bg-white text-indigo-600 shadow-sm border border-indigo-200'
+                                    : 'text-slate-400 hover:text-slate-600 hover:bg-white/50'
+                                    }`}
+                                >
+                                  <Layers className="h-3 w-3 inline mr-1" />
+                                  {day.name}
+                                  <span className="ml-1 text-[9px] opacity-60">({day.exercises.length})</span>
+                                </button>
+                              ))}
+                            </div>
+
+                            {/* EXERCISES FOR CURRENT DAY */}
+                            {currentDay && (
+                              <div className="divide-y divide-slate-100/50">
+                                {currentDay.exercises.map((ex: ExerciseItem, i: number) => (
+                                  <div key={ex.id} className="group/ex p-5 hover:bg-slate-50/80 transition-all duration-500">
+                                    <div className="flex items-center gap-4">
+                                      <div className="h-10 w-10 shrink-0 rounded-xl bg-white shadow-lg shadow-slate-200 flex items-center justify-center text-slate-900 text-sm font-black border border-slate-100 group-hover/ex:bg-indigo-600 group-hover/ex:text-white group-hover/ex:scale-110 transition-all duration-500">
+                                        {(i + 1).toString().padStart(2, "0")}
+                                      </div>
+                                      <div className="flex-1 min-w-0">
+                                        <h4 className="text-base font-black text-slate-900 tracking-tight group-hover/ex:text-indigo-600 transition-colors">{ex.title || `Ejercicio ${i + 1}`}</h4>
+                                        {ex.description && <p className="text-xs text-slate-500 mt-0.5 leading-relaxed">{ex.description}</p>}
+                                        {ex.notes && <p className="text-[10px] text-slate-400 mt-1 italic">{ex.notes}</p>}
+                                      </div>
+                                      {ex.setsReps && (
+                                        <div className="flex items-center gap-1.5 bg-indigo-50 text-indigo-700 px-3 py-1.5 rounded-lg text-xs font-bold border border-indigo-100 shrink-0">
+                                          <Repeat className="h-3 w-3" />
+                                          {ex.setsReps}
+                                        </div>
+                                      )}
+                                    </div>
+                                    {ex.videoUrl && (() => {
+                                      const ytMatch = ex.videoUrl.match(/(?:youtube\.com\/(?:watch\?v=|embed\/|shorts\/)|youtu\.be\/)([a-zA-Z0-9_-]{11})/)
+                                      if (ytMatch) {
+                                        return (
+                                          <div className="mt-3 rounded-xl overflow-hidden shadow-md border border-slate-200 aspect-video">
+                                            <iframe
+                                              src={`https://www.youtube.com/embed/${ytMatch[1]}`}
+                                              title={ex.title || 'Video del ejercicio'}
+                                              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                                              allowFullScreen
+                                              className="w-full h-full"
+                                            />
+                                          </div>
+                                        )
+                                      }
+                                      return (
+                                        <div className="mt-3 rounded-xl overflow-hidden shadow-md border border-slate-200">
+                                          <video
+                                            src={ex.videoUrl}
+                                            controls
+                                            className="w-full max-h-[300px] object-contain bg-black"
+                                            preload="metadata"
+                                          />
+                                        </div>
+                                      )
+                                    })()}
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+
+                            {/* REGISTER SESSION BUTTON */}
+                            {currentDay && (
+                              <div className="p-4 bg-gradient-to-r from-emerald-50 to-transparent border-t border-emerald-100">
+                                <button
+                                  onClick={() => openTrackingModal(routine.id, currentDay)}
+                                  className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-600 text-white font-bold text-sm hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-600/20"
+                                >
+                                  <Clipboard className="h-4 w-4" />
+                                  Registrar Sesión — {currentDay.name}
+                                </button>
+
+                                {/* SESSION HISTORY */}
+                                {dayLogs.length > 0 && (
+                                  <div className="mt-3 space-y-1.5">
+                                    <p className="text-[10px] font-black text-emerald-700 uppercase tracking-widest flex items-center gap-1">
+                                      <History className="h-3 w-3" /> Mis Sesiones ({dayLogs.length})
+                                    </p>
+                                    {dayLogs.slice(0, 3).map((log: ExerciseLog) => (
+                                      <div
+                                        key={log.id}
+                                        onClick={() => openTrackingForEdit(log, routine.id, currentDay)}
+                                        className="flex items-center gap-2 bg-white rounded-lg p-2 border border-emerald-100 text-xs cursor-pointer hover:bg-emerald-50/50 hover:border-emerald-200 transition-all group/log"
+                                      >
+                                        <CheckCircle className="h-3.5 w-3.5 text-emerald-500 shrink-0 group-hover/log:scale-110 transition-transform" />
+                                        <span className="font-semibold text-slate-700">{format(new Date(log.date), "dd/MM/yyyy HH:mm")}</span>
+                                        <span className="text-slate-400 group-hover/log:text-emerald-600 transition-colors">— {log.exercises.filter(e => e.completed).length}/{log.exercises.length} completados</span>
+                                        <div className="ml-auto flex items-center gap-1.5 opacity-0 group-hover/log:opacity-100 transition-opacity">
+                                          <span className="text-[9px] font-bold text-emerald-600 uppercase bg-emerald-100 px-1.5 py-0.5 rounded">Editar</span>
+                                          <button
+                                            onClick={(e) => {
+                                              e.stopPropagation()
+                                              handleDeleteLog(log.id)
+                                            }}
+                                            className="p-1 rounded-md text-rose-500 hover:bg-rose-100 transition-colors"
+                                          >
+                                            <Trash2 className="h-3 w-3" />
+                                          </button>
+                                        </div>
+                                      </div>
+                                    ))}
+                                    {dayLogs.length > 3 && (
+                                      <p className="text-[10px] text-slate-400 text-center">+{dayLogs.length - 3} sesiones anteriores</p>
+                                    )}
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                          </CardContent>
+                        </Card>
+                      )
+                    })}
+                  </TabsContent>
                 ))}
-              </div>
+              </Tabs>
             )}
           </TabsContent>
 

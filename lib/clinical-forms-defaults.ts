@@ -289,13 +289,15 @@ export const getDefaultFormConfig = (formType: ClinicalFormType): Partial<Clinic
             return {
                 name: "Rutina de Yoga",
                 description: "Rutinas personalizadas de yoga",
-                sections: [{ id: "routine", key: "routine", title: "Rutina", order: 0, isActive: true }],
+                sections: [
+                    { id: "routine", key: "routine", title: "Rutina", order: 0, isActive: true },
+                    { id: "exercises", key: "exercises", title: "Ejercicios", order: 1, isActive: true },
+                ],
                 fields: [
-                    { id: "1", key: "name", label: "Nombre", type: "text", section: "routine", order: 0, isActive: true, visibleToPatient: true, required: true },
+                    { id: "0", key: "month", label: "Mes / Etapa", type: "text", section: "routine", order: -1, isActive: true, visibleToPatient: true },
+                    { id: "1", key: "name", label: "Nombre de la Rutina", type: "text", section: "routine", order: 0, isActive: true, visibleToPatient: true },
                     { id: "2", key: "objective", label: "Objetivo", type: "textarea", section: "routine", order: 1, isActive: true, visibleToPatient: true },
-                    { id: "3", key: "frequency", label: "Frecuencia", type: "text", section: "routine", order: 2, isActive: true, visibleToPatient: true },
-                    { id: "4", key: "videoUrl", label: "Video (URL)", type: "text", section: "routine", order: 3, isActive: true, visibleToPatient: true },
-                    { id: "5", key: "instructions", label: "Indicaciones", type: "textarea", section: "routine", order: 4, isActive: true, visibleToPatient: true },
+                    { id: "3", key: "exerciseList", label: "Días de Práctica", type: "exercise_days", section: "exercises", order: 0, isActive: true, visibleToPatient: true },
                     { id: "99", key: "isVisible", label: "Visible para el Paciente", type: "toggle", section: "routine", order: 99, isActive: true, visibleToPatient: false },
                 ]
             }

@@ -131,7 +131,7 @@ export default function PatientHistoryPage() {
   // Helper to get the effective config (dynamic OR default)
   const getEffectiveConfig = (type: ClinicalFormType): Partial<ClinicalFormConfig> => {
     // HARD OVERRIDE: Always use default to fix persistence/corruption issues
-    if (type === 'kinesiology_evaluation' || type === 'kine_home' || type === 'training_routine') {
+    if (type === 'kinesiology_evaluation' || type === 'kine_home' || type === 'training_routine' || type === 'yoga_routine') {
       return getDefaultFormConfig(type);
     }
 
@@ -487,7 +487,7 @@ function DynamicEntryForm({
   const rawFields = config.fields || []
 
   const showBodyMap = type === "kinesiology_treatment" || type === "massage_evaluation";
-  const showAdherence = type === "kinesiology_treatment" || type === "training_routine" || type === "yoga_routine";
+  const showAdherence = type === "kinesiology_treatment" || type === "training_routine" || type === "yoga_routine" || type === "kine_home";
   const hasSidebar = showBodyMap || showAdherence;
 
   const handleBodyMapChange = (zones: any[]) => {
@@ -1630,7 +1630,7 @@ function FichaDisplay({ item, config, typeInfo, allEntries, onEdit, onDeleteLog 
             </div>
           )}
           {/* Related Exercise Logs (Sessions) */}
-          {(item.formType === 'training_routine' || item.formType === 'kine_home') && allEntries && (
+          {(item.formType === 'training_routine' || item.formType === 'kine_home' || item.formType === 'yoga_routine') && allEntries && (
             <div className="space-y-4">
               <h4 className="text-sm font-bold text-slate-900 border-b pb-1 flex items-center gap-2">
                 <HistoryIcon className="h-4 w-4 text-blue-500" />
