@@ -25,18 +25,27 @@ export function UserDialog({ open, onOpenChange, user }: UserDialogProps) {
   const [formData, setFormData] = useState({
     name: "",
     email: "",
+    dni: "",
+    address: "",
+    phone: "",
     password: "",
+    confirmPassword: "",
     role: "cliente" as UserRole,
     professionalId: "",
     isActive: true,
   })
+  const [error, setError] = useState("")
 
   useEffect(() => {
     if (user) {
       setFormData({
         name: user.name,
         email: user.email,
+        dni: user.dni || "",
+        address: user.address || "",
+        phone: user.phone || "",
         password: "",
+        confirmPassword: "",
         role: user.role,
         professionalId: user.professionalId || "",
         isActive: user.isActive ?? true,
@@ -45,21 +54,40 @@ export function UserDialog({ open, onOpenChange, user }: UserDialogProps) {
       setFormData({
         name: "",
         email: "",
+        dni: "",
+        address: "",
+        phone: "",
         password: "",
+        confirmPassword: "",
         role: "cliente",
         professionalId: "",
         isActive: true,
       })
     }
+    setError("")
   }, [user, open])
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
 
+    if (!user) {
+      if (formData.password.length < 6) {
+        setError("La contraseña debe tener al menos 6 caracteres")
+        return
+      }
+      if (formData.password !== formData.confirmPassword) {
+        setError("Las contraseñas no coinciden")
+        return
+      }
+    }
+
     if (user) {
       updateUser(user.id, {
         name: formData.name,
         email: formData.email,
+        dni: formData.dni,
+        address: formData.address,
+        phone: formData.phone,
         role: formData.role,
         professionalId: formData.professionalId || undefined,
         isActive: formData.isActive,
@@ -68,7 +96,10 @@ export function UserDialog({ open, onOpenChange, user }: UserDialogProps) {
       addUser({
         name: formData.name,
         email: formData.email,
-        password: formData.password, // Include password for new users
+        dni: formData.dni,
+        address: formData.address,
+        phone: formData.phone,
+        password: formData.password,
         role: formData.role,
         professionalId: formData.professionalId || undefined,
         isActive: formData.isActive,
@@ -103,6 +134,37 @@ export function UserDialog({ open, onOpenChange, user }: UserDialogProps) {
             />
           </div>
 
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="dni">DNI</Label>
+              <Input
+                id="dni"
+                value={formData.dni}
+                onChange={(e) => setFormData({ ...formData, dni: e.target.value })}
+                placeholder="Opcional"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="phone">Teléfono</Label>
+              <Input
+                id="phone"
+                value={formData.phone}
+                onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                placeholder="Opcional"
+              />
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="address">Dirección</Label>
+            <Input
+              id="address"
+              value={formData.address}
+              onChange={(e) => setFormData({ ...formData, address: e.target.value })}
+              placeholder="Calle, Número, Depto, Localidad (Opcional)"
+            />
+          </div>
+
           <div className="space-y-2">
             <Label htmlFor="email">Email</Label>
             <Input
@@ -115,18 +177,33 @@ export function UserDialog({ open, onOpenChange, user }: UserDialogProps) {
           </div>
 
           {!user && (
-            <div className="space-y-2">
-              <Label htmlFor="password">Contraseña</Label>
-              <Input
-                id="password"
-                type="password"
-                value={formData.password}
-                onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                required={!user}
-                placeholder="••••••••"
-              />
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="password">Contraseña</Label>
+                <Input
+                  id="password"
+                  type="password"
+                  value={formData.password}
+                  onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                  required={!user}
+                  placeholder="Min. 6 caracteres"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="confirmPassword">Confirmar</Label>
+                <Input
+                  id="confirmPassword"
+                  type="password"
+                  value={formData.confirmPassword}
+                  onChange={(e) => setFormData({ ...formData, confirmPassword: e.target.value })}
+                  required={!user}
+                  placeholder="Repetir contraseña"
+                />
+              </div>
             </div>
           )}
+
+          {error && <p className="text-sm text-red-500 font-medium">{error}</p>}
 
           <div className="space-y-2">
             <Label htmlFor="role">Rol</Label>

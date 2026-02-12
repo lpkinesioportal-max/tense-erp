@@ -406,7 +406,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       }
 
       if (data && data.length > 0) {
-        console.log(`[Supabase Load] Loaded ${data.length} items from ${tableName}`)
+        console.log(`[Supabase Load] Successfully loaded ${data.length} items from ${tableName}`)
         return data.map(row => toCamelCase(row) as T)
       }
 
@@ -979,6 +979,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         dni: userData.dni || "",
         email: userData.email,
         phone: userData.phone || "",
+        address: userData.address || "",
         balance: 0,
         specialDiscount: 0,
         createdAt: new Date(),
@@ -998,6 +999,8 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         name: userData.name,
         email: userData.email,
         phone: userData.phone || "",
+        dni: userData.dni || "",
+        address: userData.address || "",
         specialty: "",
         color: "blue",
         isActive: true,

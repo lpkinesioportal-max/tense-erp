@@ -13,6 +13,7 @@ export interface User {
   password?: string
   phone?: string
   dni?: string
+  address?: string
   isActive?: boolean
 }
 
@@ -41,6 +42,8 @@ export interface Professional {
   status: "active" | "inactive"
   availability: ProfessionalAvailability
   password?: string
+  dni?: string
+  address?: string
 }
 
 export interface Client {
@@ -55,6 +58,7 @@ export interface Client {
   createdAt: Date
   password?: string
   profileImage?: string
+  address?: string
 }
 
 export interface ServiceConfig {
