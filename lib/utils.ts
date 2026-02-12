@@ -14,17 +14,46 @@ export function formatCurrency(amount: number): string {
   }).format(amount)
 }
 
-export function formatDate(date: Date): string {
-  return new Intl.DateTimeFormat("es-AR", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-  }).format(new Date(date))
+export function formatDate(date: Date | string): string {
+  const dateObj = typeof date === "string" ? parseISODate(date) : date
+  return new Intl.NumberFormat("es-AR", {
+    minimumIntegerDigits: 2,
+  }).format(dateObj.getDate()) + "/" +
+    new Intl.NumberFormat("es-AR", {
+      minimumIntegerDigits: 2,
+    }).format(dateObj.getMonth() + 1) + "/" +
+    dateObj.getFullYear()
+}
+
+// Internal helper to parse YYYY-MM-DD reliably as local date
+export function parseISODate(dateStr: string): Date {
+  // If it contains a date part (YYYY-MM-DD), use that specifically to avoid UTC shifts
+  const isoMatch = dateStr.match(/^(\d{4})-(\d{2})-(\d{2})/)
+  if (isoMatch) {
+    const year = Number(isoMatch[1])
+    const month = Number(isoMatch[2])
+    const day = Number(isoMatch[3])
+    return new Date(year, month - 1, day)
+  }
+  return new Date(dateStr)
 }
 
 export function getDateInISO(date: Date | string): string {
-  const dateObj = typeof date === "string" ? new Date(date) : date
-  // Format as YYYY-MM-DD using local date (not UTC)
+  let dateObj: Date
+  if (typeof date === "string") {
+    // If it's a simple YYYY-MM-DD string, parse it as local date parts
+    // new Date("YYYY-MM-DD") is treated as UTC by JS, which shifts dates in many timezones
+    if (date.length === 10 && date.includes("-") && !date.includes("T")) {
+      const [year, month, day] = date.split("-").map(Number)
+      dateObj = new Date(year, month - 1, day)
+    } else {
+      dateObj = new Date(date)
+    }
+  } else {
+    dateObj = date
+  }
+
+  // Format as YYYY-MM-DD using local date components
   const year = dateObj.getFullYear()
   const month = String(dateObj.getMonth() + 1).padStart(2, "0")
   const day = String(dateObj.getDate()).padStart(2, "0")
@@ -111,7 +140,7 @@ export const transactionTypeLabels: Record<string, string> = {
 }
 
 export function formatDateDisplay(date: Date | string): string {
-  const d = new Date(date)
+  const d = typeof date === "string" ? parseISODate(date) : date
   return d.toLocaleDateString("es-AR", {
     weekday: "long",
     day: "numeric",

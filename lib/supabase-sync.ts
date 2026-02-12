@@ -34,7 +34,7 @@ function toCamelCase(obj: Record<string, any>): Record<string, any> {
 // Generic CRUD operations with fallback
 // ============================================
 
-interface SyncOptions {
+export interface SyncOptions {
     localStorageKey: string
     tableName: string
 }
@@ -146,8 +146,16 @@ export const SYNC_CONFIG = {
     servicePacks: {
         localStorageKey: 'tense_erp_servicePacks',
         tableName: 'tense_service_packs'
-    }
-} as const
+    },
+    covenants: {
+        localStorageKey: 'tense_erp_covenants',
+        tableName: 'tense_covenants'
+    },
+    transactions: {
+        localStorageKey: 'tense_erp_transactions',
+        tableName: 'tense_transactions'
+    },
+}
 
 // ============================================
 // Batch sync for migration

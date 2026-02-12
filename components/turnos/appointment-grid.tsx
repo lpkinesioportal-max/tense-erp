@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useMemo } from "react"
+import { useState, useMemo, useCallback } from "react"
 import { useData } from "@/lib/data-context"
 import { cn, getWeekDays, formatTime, statusLabels, statusColors, getDateInISO, formatCurrency } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
@@ -33,10 +33,12 @@ export function AppointmentGrid() {
 
   const activeProfessionals = useMemo(() => {
     if (selectedProfessionalIds.length > 0) {
-      return professionals.filter(p => selectedProfessionalIds.includes(p.id))
+      return professionals
+        .filter(p => selectedProfessionalIds.includes(p.id))
+        .filter(p => p.status === 'active' && p.isActive)
     }
     const single = professionals.find((p) => p.id === selectedProfessionalId)
-    return single ? [single] : []
+    return single && (single.status === 'active' && single.isActive) ? [single] : []
   }, [professionals, selectedProfessionalIds, selectedProfessionalId])
 
   const professional = activeProfessionals[0]
@@ -89,13 +91,13 @@ export function AppointmentGrid() {
   }
 
   const getAppointmentForSlot = (date: Date, slotTime: string, profId: string) => {
-    const dateStr = date.toDateString()
+    const targetDateStr = getDateInISO(date)
     const slotMinutes = timeToMinutes(slotTime)
 
     return appointments.find((apt) => {
       const aptProfId = apt.professionalIdCalendario || apt.professionalId
       if (aptProfId !== profId) return false
-      if (new Date(apt.date).toDateString() !== dateStr) return false
+      if (getDateInISO(apt.date) !== targetDateStr) return false
 
       const startMinutes = timeToMinutes(apt.startTime)
       const endMinutes = timeToMinutes(apt.endTime)
@@ -106,13 +108,13 @@ export function AppointmentGrid() {
   }
 
   const isSlotOccupiedByAppointment = (date: Date, slotTime: string, profId: string): boolean => {
-    const dateStr = date.toDateString()
+    const targetDateStr = getDateInISO(date)
     const slotMinutes = timeToMinutes(slotTime)
 
     return appointments.some((apt) => {
       const aptProfId = apt.professionalIdCalendario || apt.professionalId
       if (aptProfId !== profId) return false
-      if (new Date(apt.date).toDateString() !== dateStr) return false
+      if (getDateInISO(apt.date) !== targetDateStr) return false
 
       const startMinutes = timeToMinutes(apt.startTime)
       const endMinutes = timeToMinutes(apt.endTime)
@@ -142,12 +144,12 @@ export function AppointmentGrid() {
   const isSpanFree = (date: Date, startTime: string, durationMinutes: number, profId: string): boolean => {
     const startMinutes = timeToMinutes(startTime)
     const endMinutes = startMinutes + durationMinutes
-    const dateStr = date.toDateString()
+    const targetDateStr = getDateInISO(date)
 
     return !appointments.some((apt) => {
       const aptProfId = apt.professionalIdCalendario || apt.professionalId
       if (aptProfId !== profId) return false
-      if (new Date(apt.date).toDateString() !== dateStr) return false
+      if (getDateInISO(apt.date) !== targetDateStr) return false
 
       const aptStart = timeToMinutes(apt.startTime)
       const aptEnd = timeToMinutes(apt.endTime)
@@ -176,13 +178,13 @@ export function AppointmentGrid() {
   }
 
   const getAppointmentsForSlot = (date: Date, slotTime: string, professionalId: string) => {
-    const dateStr = date.toDateString()
+    const targetDateStr = getDateInISO(date)
     const slotMinutes = timeToMinutes(slotTime)
 
     const matches = appointments.filter((apt) => {
       const aptProfId = apt.professionalIdCalendario || apt.professionalId
       if (aptProfId !== professionalId) return false
-      if (new Date(apt.date).toDateString() !== dateStr) return false
+      if (getDateInISO(apt.date) !== targetDateStr) return false
 
       const startMinutes = timeToMinutes(apt.startTime)
       return startMinutes >= slotMinutes && startMinutes < slotMinutes + 15
@@ -227,35 +229,34 @@ export function AppointmentGrid() {
   }
 
   // --- Settle logic ---
-  const handleSettleDay = (profId?: string) => {
-    const id = profId || selectedProfessionalId
+  const handleSettleDay = (profId: string, date: Date) => {
+    const id = profId
     if (!id) return
 
     // Re-calculating status locally for the specific professional
-    const today = new Date()
-    const todayStr = getDateInISO(today)
-    const todayAppointments = allAppointments.filter(
+    const targetDateStr = getDateInISO(date)
+    const targetAppointments = allAppointments.filter(
       (a) =>
-        getDateInISO(a.date) === todayStr &&
-        a.professionalIdCalendario === id &&
+        getDateInISO(a.date) === targetDateStr &&
+        (a.professionalIdCalendario === id || a.professionalId === id) &&
         a.status !== "cancelled" &&
         a.status !== "follow_up"
     )
 
-    const pendingApts = todayAppointments.filter(
+    const pendingApts = targetAppointments.filter(
       (a) => a.status === "confirmed" || a.status === "pending_deposit"
     )
 
     if (pendingApts.length > 0) {
       toast({
         title: "No se puede liquidar",
-        description: `Debe marcar como Asistió o No asistió a todos los pacientes.`,
+        description: `Debe marcar como Asistió o No asistió a todos los pacientes de este día.`,
         variant: "destructive",
       })
       return
     }
 
-    const result = generateDailySettlement(id, new Date())
+    const result = generateDailySettlement(id, date)
     if (result) {
       toast({
         title: "Día liquidado",
@@ -278,6 +279,16 @@ export function AppointmentGrid() {
   }
 
 
+  const isDaySettled = useCallback((profId: string, date: Date) => {
+    const targetDateStr = getDateInISO(date)
+    return (settlements || []).find((s) =>
+      s.professionalId === profId &&
+      s.date && getDateInISO(s.date) === targetDateStr &&
+      s.type === "daily"
+    )
+  }, [settlements])
+
+
   // Calculate Settle Button Positions
   const settleButtonRows = useMemo(() => {
     const result: Record<string, number> = {}
@@ -286,13 +297,19 @@ export function AppointmentGrid() {
 
     activeProfessionals.forEach(prof => {
       weekDays.forEach((day, dayIndex) => {
-        if (!isToday(day)) return
+        // Calculate for all days in the week view (today and past)
+        const today = new Date()
+        today.setHours(0, 0, 0, 0)
+        const dayCopy = new Date(day)
+        dayCopy.setHours(0, 0, 0, 0)
+
+        if (dayCopy > today) return // Skip future days
 
         const dayStr = day.toDateString()
         const dayAppointments = appointments.filter(
           (a) =>
-            new Date(a.date).toDateString() === dayStr &&
-            a.professionalId === prof.id &&
+            getDateInISO(a.date) === getDateInISO(day) &&
+            (a.professionalId === prof.id || a.professionalIdCalendario === prof.id) &&
             a.status !== "cancelled" &&
             a.status !== "follow_up"
         )
@@ -631,10 +648,12 @@ export function AppointmentGrid() {
 
               {/* Settle Day Button Row */}
               {weekDays.map((day, dayIndex) => {
-                if (!isToday(day)) return null
+                const today = new Date()
+                today.setHours(0, 0, 0, 0)
+                const dayCopy = new Date(day)
+                dayCopy.setHours(0, 0, 0, 0)
 
-                const targetRow = settleButtonRows[dayIndex]
-                if (!targetRow) return null
+                if (dayCopy > today) return null
 
                 return (
                   <div key={`settle-${dayIndex}`} className="contents">
@@ -658,22 +677,61 @@ export function AppointmentGrid() {
                               gridColumn: `${profIndex + 1} / span 1`,
                             }}
                           >
-                            <Button
-                              size="sm"
-                              className="bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm transition-all w-full h-8 px-1"
-                              onClick={() => {
-                                // We need to handle professional context here
-                                // Since generateDailySettlement depends on selectedProfessionalId, 
-                                // we might need to set it temporarily or update the function
-                                setSelectedProfessionalId(prof.id)
-                                handleSettleDay()
-                              }}
-                            >
-                              <div className="flex flex-col items-center scale-[0.8]">
-                                <CheckCircle className="h-3 w-3" />
-                                <span className="text-[8px] font-bold">Liquidar</span>
-                              </div>
-                            </Button>
+                            {(() => {
+                              const targetDateStr = getDateInISO(day)
+                              const hasAppointments = appointments.some(apt =>
+                                (apt.professionalIdCalendario === prof.id || apt.professionalId === prof.id) &&
+                                getDateInISO(apt.date) === targetDateStr
+                              )
+
+                              if (!hasAppointments) return null
+
+                              const existingSettlement = isDaySettled(prof.id, day)
+                              if (existingSettlement) {
+                                return (
+                                  <div className="flex flex-col gap-1 w-full mt-4">
+                                    <div className="flex items-center justify-between gap-1">
+                                      <div className="flex flex-col flex-1 bg-emerald-50 border border-emerald-200 rounded px-2 py-1">
+                                        <div className="flex items-center gap-1 text-emerald-700">
+                                          <CheckCircle className="h-3 w-3" />
+                                          <span className="text-[10px] font-bold">Liquidado</span>
+                                        </div>
+                                        <span className="text-[8px] text-emerald-600 font-medium">
+                                          {formatCurrency(existingSettlement.amountToSettle || 0)}
+                                        </span>
+                                      </div>
+                                      <Button
+                                        size="icon"
+                                        variant="ghost"
+                                        className="h-8 w-8 text-muted-foreground hover:text-red-600 hover:bg-red-50"
+                                        onClick={() => {
+                                          if (confirm("¿Está seguro de eliminar esta liquidación? El día volverá a quedar pendiente.")) {
+                                            deleteSettlement(existingSettlement.id)
+                                          }
+                                        }}
+                                      >
+                                        <Ban className="h-4 w-4" />
+                                      </Button>
+                                    </div>
+                                  </div>
+                                )
+                              }
+
+                              return (
+                                <Button
+                                  size="sm"
+                                  className="bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm transition-all w-full h-8 px-1"
+                                  onClick={() => {
+                                    handleSettleDay(prof.id, day)
+                                  }}
+                                >
+                                  <div className="flex flex-col items-center scale-[0.8]">
+                                    <CheckCircle className="h-3 w-3" />
+                                    <span className="text-[8px] font-bold">Liquidar</span>
+                                  </div>
+                                </Button>
+                              )
+                            })()}
                           </div>
                         </div>
                       )
@@ -726,12 +784,6 @@ export function AppointmentGrid() {
         onClose={() => setShowShareDialog(false)}
         initialProfessionalIds={selectedProfessionalIds.length > 0 ? selectedProfessionalIds : (selectedProfessionalId ? [selectedProfessionalId] : [])}
       />
-
-      {weekDays.some((d) => isToday(d)) && selectedProfessionalId && !settleStatus.allowed && (
-        // Optional: keep a toast or indicator if needed, or nothing. 
-        // Since we moved the button into the grid, we can remove the fixed one.
-        null
-      )}
     </div>
   )
 }

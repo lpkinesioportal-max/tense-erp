@@ -39,7 +39,7 @@ export interface Professional {
   commissionRate: number
   isActive: boolean
   color?: string
-  status: "active" | "inactive"
+  status: "active" | "inactive" | "deleted"
   availability: ProfessionalAvailability
   password?: string
   dni?: string
@@ -59,6 +59,15 @@ export interface Client {
   password?: string
   profileImage?: string
   address?: string
+  covenantId?: string
+}
+
+export interface Covenant {
+  id: string
+  name: string
+  discountPercentage: number
+  isActive: boolean
+  createdAt: Date
 }
 
 export interface ServiceConfig {
@@ -141,6 +150,7 @@ export interface Appointment {
   professionalNewId?: string
   changedBy?: string
   changedAt?: Date
+  covenantId?: string
 }
 
 export type TransactionType =

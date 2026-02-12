@@ -15,6 +15,8 @@ import { FutureEstimator } from "@/components/reportes/future-estimator"
 import { FinancialAnalysis } from "@/components/reportes/financial-analysis"
 import { ProductAnalysis } from "@/components/reportes/product-analysis"
 import { ChatAnalysis } from "@/components/reportes/chat-analysis"
+import { CovenantsAnalysis } from "@/components/reportes/covenants-analysis"
+import { Building2 } from "lucide-react"
 
 export default function ReportesPage() {
   const { hasPermission } = useAuth()
@@ -32,6 +34,7 @@ export default function ReportesPage() {
     { id: "products", label: "Productos", icon: ShoppingBag },
     { id: "estimator", label: "Proyecciones", icon: TrendingUp },
     { id: "chats", label: "Auditoría", icon: MessageCircle },
+    { id: "convenios", label: "Convenios", icon: Building2 },
   ]
 
   return (
@@ -89,6 +92,10 @@ export default function ReportesPage() {
 
             <TabsContent value="chats">
               <ChatAnalysis />
+            </TabsContent>
+
+            <TabsContent value="convenios">
+              <CovenantsAnalysis />
             </TabsContent>
           </div>
         </Tabs>

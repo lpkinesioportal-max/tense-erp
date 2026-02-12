@@ -43,6 +43,7 @@ import {
   CompanyInfo,
   InterProfessionalAdjustment,
   ClinicalEntry,
+  Covenant,
 } from "./types"
 import {
   users as mockUsers,
@@ -60,8 +61,9 @@ import {
   mockOccupationGoals,
 } from "./mock-data"
 import { supabase, isSupabaseConfigured } from "./supabase-client"
-import { SYNC_CONFIG } from "./supabase-sync"
+import { SYNC_CONFIG, deleteFromSupabase as apiDelete, upsertToSupabase as apiUpsert } from "./supabase-sync"
 import { fetchClientLogs } from "./exercise-logs.storage"
+import { getDateInISO } from "./utils"
 
 const mockClinicalTasks: ClinicalTask[] = []
 const mockClinicalTaskEvents: ClinicalTaskEvent[] = []
@@ -278,6 +280,13 @@ interface DataContextType {
   updateCompanyInfo: (data: Partial<CompanyInfo>) => void
 
   isInitialized: boolean
+
+  // Covenants
+  covenants: Covenant[]
+  addCovenant: (covenant: Omit<Covenant, "id" | "createdAt">) => void
+  updateCovenant: (id: string, data: Partial<Covenant>) => void
+  deleteCovenant: (id: string) => void
+  getCovenant: (id: string) => Covenant | undefined
 }
 
 const DataContext = createContext<DataContextType | undefined>(undefined)
@@ -345,6 +354,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   const [receptionMonthlyCloses, setReceptionMonthlyCloses] = useState<ReceptionMonthlyClose[]>([])
 
   const [clinicalFormConfigs, setClinicalFormConfigs] = useState<ClinicalFormConfig[]>([])
+  const [covenants, setCovenants] = useState<Covenant[]>([])
 
   const [clinicalTasks, setClinicalTasks] = useState<ClinicalTask[]>([])
   const [clinicalTaskEvents, setClinicalTaskEvents] = useState<ClinicalTaskEvent[]>([])
@@ -401,7 +411,10 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       const { data, error } = await supabase.from(tableName).select('*')
 
       if (error) {
-        console.error(`[Supabase Load] Error fetching ${tableName}:`, error.message)
+        // Silently handle cases where the table hasn't been created yet in Supabase
+        if (!error.message.includes("schema cache") && !error.message.includes("does not exist")) {
+          console.error(`[Supabase Load] Error fetching ${tableName}:`, error.message)
+        }
         return defaultValue
       }
 
@@ -437,7 +450,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       if (typeof window === "undefined") return
 
       // Load from Supabase ONLY for main entities
-      const [supabaseAppts, supabaseClients, supabaseProfs, supabaseUsers, supabasePacks] = await Promise.all([
+      const [supabaseAppts, supabaseClients, supabaseProfs, supabaseUsers, supabasePacks, supabaseCovenants, supabaseTransactions] = await Promise.all([
         loadFromSupabase<Appointment>(
           SYNC_CONFIG.appointments.tableName,
           mockAppointments
@@ -458,6 +471,14 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
           SYNC_CONFIG.servicePacks.tableName,
           mockServicePacks
         ),
+        loadFromSupabase<Covenant>(
+          SYNC_CONFIG.covenants.tableName,
+          []
+        ),
+        loadFromSupabase<Transaction>(
+          SYNC_CONFIG.transactions.tableName,
+          []
+        ),
       ])
 
       // Use Supabase data first, then LocalStorage, final fallback to mock
@@ -477,17 +498,133 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
 
       // Set professionals
       const storedProfs = loadFromStorage<Professional[]>("tense_erp_professionals", [])
-      const finalProfs = supabaseProfs.length > 0 ? supabaseProfs : (storedProfs.length > 0 ? storedProfs : mockProfessionals)
+      // Filter out deleted professionals from Supabase data
+      // const activeSupabaseProfs = supabaseProfs.filter(p => p.status !== 'deleted')
+      // TEMPORARY: Showing all professionals including deleted to recover data
+      const activeSupabaseProfs = supabaseProfs
+
+      let finalProfs = activeSupabaseProfs.length > 0 ? activeSupabaseProfs : (storedProfs.length > 0 ? storedProfs : mockProfessionals)
+      if (supabaseProfs.length > 0) {
+        storedProfs.forEach(local => {
+          // Add local items ONLY if they are not in the raw Supabase response (to avoid resurrecting deleted items)
+          if (!supabaseProfs.some(remote => remote.id === local.id)) {
+            finalProfs.push(local)
+          }
+        })
+      }
       setProfessionals(finalProfs)
       saveToStorage("tense_erp_professionals", finalProfs)
 
+      // Select all active professionals by default on initialization
+      const activeIds = finalProfs
+        .filter(p => (p.status === 'active' || !p.status) && p.isActive !== false)
+        .map(p => p.id)
+      setSelectedProfessionalIds(activeIds)
+
       // Set users
       const storedUsers = loadFromStorage<User[]>("tense_erp_users", [])
-      const finalUsers = supabaseUsers.length > 0 ? supabaseUsers : (storedUsers.length > 0 ? storedUsers : mockUsers)
+      let finalUsers = supabaseUsers.length > 0 ? supabaseUsers : (storedUsers.length > 0 ? storedUsers : mockUsers)
+
+      // Enforce System Users (Admin, Reception) existence if missing
+      // This recovers critical system accounts if Supabase data is partial
+      const systemUsers = mockUsers.filter(u => u.role === 'super_admin' || u.role === 'admin' || u.email.includes('recepcion'))
+      systemUsers.forEach(sysUser => {
+        if (!finalUsers.some(u => u.email === sysUser.email)) {
+          finalUsers.push(sysUser)
+        }
+      })
+
+      // INTEGRIDAD DE DATOS (Auto-Repair): Asegurar que todo Profesional y Cliente tenga su Usuario correspondiente
+      // Si existen en la lista de entidades pero no en usuarios, los creamos/restauramos.
+
+      // 1. Restaurar Usuarios de Profesionales
+      finalProfs.forEach(prof => {
+        // Check by email OR professionalId
+        if (!finalUsers.some(u => u.email === prof.email || u.professionalId === prof.id)) {
+          console.log(`[Auto-Repair] Creating missing user for professional: ${prof.name}`)
+          finalUsers.push({
+            id: `user-gen-prof-${prof.id.split('-').pop() || Date.now()}`,
+            name: prof.name,
+            email: prof.email,
+            role: "profesional",
+            status: prof.status === 'deleted' ? 'inactive' : (prof.status as UserStatus),
+            isActive: prof.isActive,
+            professionalId: prof.id,
+            password: prof.password || "123456",
+            createdAt: new Date(),
+            phone: prof.phone
+          })
+        }
+      })
+
+      // 2. Restaurar Usuarios de Clientes
+      finalClients.forEach(client => {
+        // Check by email OR clientId
+        if (!finalUsers.some(u => u.email === client.email || u.clientId === client.id)) {
+          // Solo restauramos si tiene email válido
+          if (client.email && client.email.includes('@')) {
+            console.log(`[Auto-Repair] Creating missing user for client: ${client.name}`)
+            finalUsers.push({
+              id: `user-gen-client-${client.id.split('-').pop() || Date.now()}`,
+              name: client.name,
+              email: client.email,
+              role: "cliente",
+              status: "active",
+              isActive: true,
+              clientId: client.id,
+              password: client.password || "123456",
+              createdAt: new Date(),
+              phone: client.phone
+            })
+          }
+        }
+      })
+
       setUsers(finalUsers)
       saveToStorage("tense_erp_users", finalUsers)
 
-      setTransactions(loadFromStorage("tense_erp_transactions", mockTransactions))
+      // Set initial transactions from Supabase/Store
+      const storedTransactions = loadFromStorage<Transaction[]>("tense_erp_transactions", [])
+      let finalTransactions = supabaseTransactions.length > 0 ? supabaseTransactions : (storedTransactions.length > 0 ? storedTransactions : mockTransactions)
+
+      // 3. Restaurar Transacciones de Turnos (Auto-Repair)
+      // Asegurar que cada pago dentro de un turno tenga su transacción correspondiente
+      finalAppts.forEach(apt => {
+        if (apt.payments && apt.payments.length > 0) {
+          apt.payments.forEach(pay => {
+            // Check if this payment already has a transaction (by appointmentId and matching amount/date)
+            // Note: date comparison can be tricky, so we check approximate match if possible
+            const exists = finalTransactions.some(txn =>
+              txn.appointmentId === apt.id &&
+              Math.abs(txn.amount) === pay.amount &&
+              (txn.paymentMethod === pay.paymentMethod)
+            )
+
+            if (!exists) {
+              console.log(`[Auto-Repair] Creating missing transaction for payment in appointment ${apt.id}`)
+              const newTxn: Transaction = {
+                id: `txn-auto-${pay.id || Date.now()}`,
+                date: pay.paymentDate || apt.date,
+                type: pay.isDeposit ? "deposit_payment" : "session_payment",
+                amount: pay.amount,
+                paymentMethod: pay.paymentMethod,
+                cashRegisterType: "professional",
+                professionalId: pay.receivedByProfessionalId || apt.professionalId,
+                appointmentId: apt.id,
+                clientId: apt.clientId,
+                notes: pay.notes || (pay.isDeposit ? "Seña de turno (Auto-restaurado)" : "Pago de sesión (Auto-restaurado)"),
+                createdAt: new Date(),
+              }
+              finalTransactions.push(newTxn)
+              // Sync to Supabase if missing
+              syncToSupabase(SYNC_CONFIG.transactions.tableName, [newTxn])
+            }
+          })
+        }
+      })
+
+      setTransactions(finalTransactions)
+      saveToStorage("tense_erp_transactions", finalTransactions)
       setSettlements(loadFromStorage("tense_erp_settlements", mockSettlements))
 
       const migratedUsers = finalUsers.map((u: User) => {
@@ -530,6 +667,14 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       const finalPacks = supabasePacks.length > 0 ? supabasePacks : (storedPacks.length > 0 ? storedPacks : mockServicePacks)
       setServicePacks(finalPacks)
       saveToStorage("tense_erp_servicePacks", finalPacks)
+      setServicePacks(finalPacks)
+      saveToStorage("tense_erp_servicePacks", finalPacks)
+
+      const storedCovenants = loadFromStorage("tense_erp_covenants", [])
+      const finalCovenants = supabaseCovenants.length > 0 ? supabaseCovenants : storedCovenants
+      setCovenants(finalCovenants)
+      saveToStorage("tense_erp_covenants", finalCovenants)
+
       setCashRegisters(loadFromStorage("tense_erp_cashRegisters", mockCashRegisters))
       setWaitlist(loadFromStorage("tense_waitlist", []))
       setSuppliers(loadFromStorage("suppliers", []))
@@ -806,6 +951,50 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     }
   }, [interProfessionalAdjustments, isInitialized])
 
+  useEffect(() => {
+    if (isInitialized) {
+      saveToStorage("tense_erp_covenants", covenants)
+    }
+  }, [covenants, isInitialized])
+
+  // Covenants Implementation
+  const addCovenant = (covenant: Omit<Covenant, "id" | "createdAt">) => {
+    const newCovenant: Covenant = {
+      ...covenant,
+      id: crypto.randomUUID(),
+      createdAt: new Date(),
+    }
+    setCovenants((prev) => {
+      const updated = [...prev, newCovenant]
+      saveToStorage("tense_erp_covenants", updated)
+      return updated
+    })
+    apiUpsert(SYNC_CONFIG.covenants, newCovenant)
+  }
+
+  const updateCovenant = (id: string, data: Partial<Covenant>) => {
+    setCovenants((prev) => {
+      const updated = prev.map((c) => (c.id === id ? { ...c, ...data } : c))
+      saveToStorage("tense_erp_covenants", updated)
+      return updated
+    })
+    const covenant = covenants.find((c) => c.id === id)
+    if (covenant) {
+      apiUpsert(SYNC_CONFIG.covenants, { ...covenant, ...data })
+    }
+  }
+
+  const deleteCovenant = (id: string) => {
+    setCovenants((prev) => {
+      const updated = prev.filter((c) => c.id !== id)
+      saveToStorage("tense_erp_covenants", updated)
+      return updated
+    })
+    apiDelete(SYNC_CONFIG.covenants, id)
+  }
+
+  const getCovenant = (id: string) => covenants.find((c) => c.id === id)
+
   // Clinical Entries Implementation
   const loadClinicalEntries = useCallback(async (clientId: string): Promise<ClinicalEntry[]> => {
     if (!isSupabaseConfigured()) return []
@@ -986,7 +1175,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         notes: "Creado desde gestión del equipo",
       }
       setClients((prev) => [...prev, newClient])
-      syncToSupabase(SYNC_CONFIG.clients.tableName, [newClient])
+      apiUpsert(SYNC_CONFIG.clients, newClient)
     }
 
     // Si el rol es profesional, también lo agregamos a la lista de profesionales
@@ -1020,7 +1209,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         },
       }
       setProfessionals((prev) => [...prev, newProfessional])
-      syncToSupabase(SYNC_CONFIG.professionals.tableName, [newProfessional])
+      apiUpsert(SYNC_CONFIG.professionals, newProfessional)
 
       // Creamos su caja automática
       setCashRegisters((prev) => [
@@ -1042,7 +1231,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       saveToStorage("tense_erp_users", updated)
       return updated
     })
-    syncToSupabase(SYNC_CONFIG.users.tableName, [newUser])
+    apiUpsert(SYNC_CONFIG.users, newUser)
   }
 
   const updateUser = (id: string, data: Partial<User>) => {
@@ -1050,7 +1239,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       const updated = prev.map((u) => (u.id === id ? { ...u, ...data } : u))
       const updatedUser = updated.find(u => u.id === id)
       if (updatedUser) {
-        syncToSupabase(SYNC_CONFIG.users.tableName, [updatedUser])
+        apiUpsert(SYNC_CONFIG.users, updatedUser)
       }
       return updated
     })
@@ -1114,7 +1303,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
           professionalId: professionalId,
           role: "profesional"
         }
-        syncToSupabase(SYNC_CONFIG.users.tableName, [updated[existingUserIndex]])
+        apiUpsert(SYNC_CONFIG.users, updated[existingUserIndex])
       } else {
         const newUser: User = {
           id: `user-${Date.now()}`,
@@ -1128,7 +1317,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
           createdAt: new Date()
         }
         updated = [...prev, newUser]
-        syncToSupabase(SYNC_CONFIG.users.tableName, [newUser])
+        apiUpsert(SYNC_CONFIG.users, newUser)
       }
       saveToStorage("tense_erp_users", updated)
       return updated
@@ -1157,7 +1346,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     })
 
     // Sync to Supabase directly
-    syncToSupabase(SYNC_CONFIG.professionals.tableName, [newProfessional])
+    apiUpsert(SYNC_CONFIG.professionals, newProfessional)
   }
 
   const updateProfessional = (id: string, data: Partial<Professional>) => {
@@ -1165,7 +1354,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       const updated = prev.map((p) => (p.id === id ? { ...p, ...data } : p))
       const updatedProf = updated.find(p => p.id === id)
       if (updatedProf) {
-        syncToSupabase(SYNC_CONFIG.professionals.tableName, [updatedProf])
+        apiUpsert(SYNC_CONFIG.professionals, updatedProf)
       }
       saveToStorage("tense_erp_professionals", updated)
       return updated
@@ -1186,6 +1375,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
                 status: (isActive ? "active" : "inactive") as UserStatus
               } : {})
             }
+            apiUpsert(SYNC_CONFIG.users, updatedUser)
             return updatedUser
           }
           return u
@@ -1196,18 +1386,28 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     }
   }
 
-  const deleteProfessional = (id: string) => {
-    console.log(`[Cascaded Delete] Deleting professional: ${id}`)
-    setProfessionals((prev) => prev.filter((p) => p.id !== id))
-    deleteFromSupabase(SYNC_CONFIG.professionals.tableName, id)
+  const deleteProfessional = async (id: string) => {
+    console.log(`[Soft Disable] Deactivating professional agenda: ${id}`)
 
-    // Also delete associated user
-    const userToDelete = users.find(u => u.professionalId === id)
-    if (userToDelete) {
-      console.log(`[Cascaded Delete] Linking: Deleting user ${userToDelete.id}`)
-      setUsers((prev) => prev.filter((u) => u.id !== userToDelete.id))
-      deleteFromSupabase(SYNC_CONFIG.users.tableName, userToDelete.id)
+    // User Request: "No quiero eliminar al profesional. solo la agenda"
+    // Action: We ONLY deactivate the professional (hide from calendar/lists) but KEEP the user and history.
+
+    setProfessionals((prev) => {
+      const updated = prev.map((p) => p.id === id ? { ...p, status: 'inactive' as const, isActive: false } : p)
+      saveToStorage("tense_erp_professionals", updated)
+      return updated
+    })
+
+    const prof = professionals.find(p => p.id === id)
+    if (prof) {
+      // Just update status to inactive in Supabase
+      await apiUpsert(SYNC_CONFIG.professionals, { ...prof, status: 'inactive', isActive: false })
     }
+
+    // Also deactivate the associated user (optional, depending on if they should still login)
+    // For now, let's keep the user active so they can still see their history, 
+    // or maybe the user wants to remove the 'agenda' capability only.
+    // Given the complaint "eliminaste a todas las cuentas", we touch NOTHING else.
   }
 
   // Clients
@@ -1235,7 +1435,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
 
     // Sync User if it's new
     if (!users.some(u => u.email === client.email)) {
-      syncToSupabase(SYNC_CONFIG.users.tableName, [newUser])
+      apiUpsert(SYNC_CONFIG.users, newUser)
     }
 
     setClients((prev) => {
@@ -1243,7 +1443,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       saveToStorage("tense_erp_clients", updated)
       return updated
     })
-    syncToSupabase(SYNC_CONFIG.clients.tableName, [newClient])
+    apiUpsert(SYNC_CONFIG.clients, newClient)
   }
 
   const updateClient = (id: string, data: Partial<Client>) => {
@@ -1251,7 +1451,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       const updated = prev.map((c) => (c.id === id ? { ...c, ...data } : c))
       const updatedClient = updated.find(c => c.id === id)
       if (updatedClient) {
-        syncToSupabase(SYNC_CONFIG.clients.tableName, [updatedClient])
+        apiUpsert(SYNC_CONFIG.clients, updatedClient)
       }
       saveToStorage("tense_erp_clients", updated)
       return updated
@@ -1267,7 +1467,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
               ...(data.name ? { name: data.name } : {}),
               ...(data.email ? { email: data.email } : {})
             }
-            syncToSupabase(SYNC_CONFIG.users.tableName, [upUser])
+            apiUpsert(SYNC_CONFIG.users, upUser)
             return upUser
           }
           return u
@@ -1485,11 +1685,38 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       id: `apt-${Date.now()}`,
       createdAt: new Date(),
     }
+
     setAppointments((prev) => {
       const updated = [...prev, newAppointment]
       saveToStorage("tense_erp_appointments", updated)
       return updated
     })
+
+    // Create transactions for initial payments
+    if (newAppointment.payments && newAppointment.payments.length > 0) {
+      const newTransactions: Transaction[] = newAppointment.payments.map(pay => ({
+        id: `txn-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        date: pay.paymentDate || new Date(),
+        type: pay.isDeposit ? "deposit_payment" : "session_payment",
+        amount: pay.amount,
+        paymentMethod: pay.paymentMethod,
+        cashRegisterType: "professional",
+        professionalId: pay.receivedByProfessionalId || newAppointment.professionalId,
+        appointmentId: newAppointment.id,
+        clientId: newAppointment.clientId,
+        notes: pay.notes || (pay.isDeposit ? "Seña de turno" : "Pago de sesión"),
+        createdAt: new Date(),
+      }))
+
+      setTransactions(prev => {
+        const updated = [...prev, ...newTransactions]
+        saveToStorage("tense_erp_transactions", updated)
+        return updated
+      })
+
+      // Sync transactions to Supabase
+      syncToSupabase(SYNC_CONFIG.transactions.tableName, newTransactions)
+    }
 
     // Sync to Supabase directly
     syncToSupabase(SYNC_CONFIG.appointments.tableName, [newAppointment])
@@ -1619,7 +1846,12 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       notes: payment.notes || (payment.isDeposit ? "Seña de turno" : "Pago de sesión"),
       createdAt: new Date(),
     }
-    setTransactions((prev) => [...prev, txn])
+    setTransactions((prev) => {
+      const updated = [...prev, txn]
+      saveToStorage("tense_erp_transactions", updated)
+      syncToSupabase(SYNC_CONFIG.transactions.tableName, [txn])
+      return updated
+    })
 
     // Only Cash hits the professional cash register
     if (payment.paymentMethod === "cash") {
@@ -2030,10 +2262,10 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     const professional = professionals.find((p) => p.id === professionalId)
     if (!professional) return null
 
+    const targetDateStr = getDateInISO(date)
     const profAppointments = appointments.filter((a) => {
-      const aptDate = new Date(a.date)
-      return a.professionalId === professionalId &&
-        aptDate.toDateString() === date.toDateString() &&
+      return (a.professionalId === professionalId || a.professionalIdCalendario === professionalId) &&
+        getDateInISO(a.date) === targetDateStr &&
         a.status !== "cancelled"
     })
 
@@ -2074,8 +2306,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     appointments.forEach((apt) => {
       (apt.payments || []).forEach((payment) => {
         if (payment.receivedByProfessionalId === professionalId) {
-          const pDate = payment.paymentDate ? new Date(payment.paymentDate) : new Date(payment.createdAt)
-          if (pDate.toDateString() === date.toDateString()) {
+          if (getDateInISO(payment.paymentDate || payment.createdAt) === targetDateStr) {
             if (payment.paymentMethod === "cash") {
               cashCollected += payment.amount
             } else if (payment.paymentMethod === "transfer") {
@@ -3069,6 +3300,11 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         return newIds
       })
     },
+    covenants,
+    addCovenant,
+    updateCovenant,
+    deleteCovenant,
+    getCovenant,
     isInitialized,
   }
 

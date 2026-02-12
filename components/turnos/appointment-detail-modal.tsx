@@ -11,7 +11,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Badge } from "@/components/ui/badge"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
-import { formatCurrency } from "@/lib/utils"
+import { formatCurrency, formatDateDisplay, formatDate, parseISODate } from "@/lib/utils"
 import { PaymentResolutionModal } from "./payment-resolution-modal"
 import type { Appointment, AppointmentStatus, PaymentMethod, Professional, AppointmentPayment } from "@/lib/types"
 import { Calendar, X, MessageCircle, Phone, Ban, ExternalLink, Check } from "lucide-react"
@@ -101,19 +101,12 @@ export function AppointmentDetailModal({
 
   const remaining = appointment.finalPrice - (appointment.paidAmount || 0)
 
-  const formatDateDisplay = (date: Date) => {
-    return new Date(date).toLocaleDateString("es-AR", { day: "numeric", month: "long" }).toUpperCase()
-  }
 
   const sendWhatsAppConfirmation = (paymentAmt: number, method: PaymentMethod) => {
     if (!client?.phone) return
 
     const phoneNumber = client.phone.replace(/\D/g, "")
-    const formattedDate = new Date(appointment.date).toLocaleDateString("es-AR", {
-      weekday: "long",
-      day: "numeric",
-      month: "long",
-    })
+    const formattedDate = formatDateDisplay(appointment.date)
 
     const message = encodeURIComponent(
       `✅ *Pago Registrado - TENSE*\n\n` +
@@ -172,7 +165,7 @@ export function AppointmentDetailModal({
     }
 
     const now = new Date()
-    const aptDate = new Date(appointment.date)
+    const aptDate = typeof appointment.date === "string" ? parseISODate(appointment.date) : new Date(appointment.date)
     const [hours, minutes] = appointment.startTime.split(":").map(Number)
     aptDate.setHours(hours, minutes, 0, 0)
 
@@ -184,11 +177,7 @@ export function AppointmentDetailModal({
     if (phoneNumber.length === 10 && !phoneNumber.startsWith("54")) {
       phoneNumber = "54" + phoneNumber
     }
-    const formattedDate = new Date(appointment.date).toLocaleDateString("es-AR", {
-      weekday: "long",
-      day: "numeric",
-      month: "long",
-    })
+    const formattedDate = formatDateDisplay(appointment.date)
 
     let message = ""
 

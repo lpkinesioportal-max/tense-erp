@@ -58,7 +58,7 @@ export function BookingWizard({
   isOvertimeMode = false,
 }: BookingWizardProps) {
   const { user } = useAuth()
-  const { clients, professionals, serviceConfigs, servicePacks, appointments, addClient, addAppointment } = useData()
+  const { clients, professionals, serviceConfigs, servicePacks, appointments, addClient, addAppointment, covenants } = useData()
 
   // Wizard state
   const [step, setStep] = useState<Step>(1)
@@ -133,7 +133,7 @@ export function BookingWizard({
 
   // Calculate pricing
   const pricing = useMemo(() => {
-    if (!service) return { basePrice: 0, discount: 0, finalPrice: 0, depositSuggested: 0, sessionsCount: 1 }
+    if (!service) return { basePrice: 0, discount: 0, discountPercent: 0, finalPrice: 0, depositSuggested: 0, sessionsCount: 1 }
 
     let basePrice = 0
     let sessionsCount = 1
@@ -145,7 +145,16 @@ export function BookingWizard({
       basePrice = service.basePrice
     }
 
-    const discountPercent = selectedClient?.specialDiscount || 0
+    // Calcular descuento. Si hay convenio, tiene prioridad o se suma? 
+    // Usuario pide: "al agregar la etiqueta de convenio, agregar el desciento que tiene ese convenio"
+    const clientCovenant = covenants?.find(c => c.id === selectedClient?.covenantId)
+    const covenantDiscount = clientCovenant?.isActive ? clientCovenant.discountPercentage : 0
+
+    // El "specialDiscount" es lo que ya tenia el cliente. 
+    // Sumamos los descuentos o usamos el mayor? Usualmente se usa el mayor o el convenio manda.
+    // Usaremos el mayor para beneficio del paciente.
+    const discountPercent = Math.max(selectedClient?.specialDiscount || 0, covenantDiscount)
+
     const discountAmount = basePrice * (discountPercent / 100)
     const finalPrice = basePrice - discountAmount
 
@@ -158,7 +167,7 @@ export function BookingWizard({
     }
 
     return { basePrice, discount: discountAmount, discountPercent, finalPrice, depositSuggested, sessionsCount }
-  }, [service, bookingType, selectedPack, selectedClient])
+  }, [service, bookingType, selectedPack, selectedClient, covenants])
 
   const isDateWithinPackValidity = (date: Date): boolean => {
     if (bookingType !== "pack" || !selectedPack) return true
@@ -358,7 +367,8 @@ export function BookingWizard({
         startTime: slot.time,
         endTime,
         basePrice: service.basePrice,
-        discountPercent: selectedClient.specialDiscount || 0,
+        discountPercent: pricing.discountPercent,
+        covenantId: selectedClient.covenantId,
         finalPrice: pricePerSession,
         professionalPercentage: professional.commissionRate,
         professionalEarnings: service.basePrice * (professional.commissionRate / 100),
@@ -369,6 +379,8 @@ export function BookingWizard({
         payments: payment ? [payment] : [],
         status: paymentOption === "reserve" ? "pending_deposit" : "confirmed",
         isPaid: paymentOption === "full",
+        cashCollected: payment?.paymentMethod === "cash" ? paidAmount : 0,
+        transferCollected: payment?.paymentMethod === "transfer" ? paidAmount : 0,
         cashInTense: payment?.paymentMethod === "cash" ? paidAmount : 0,
         transfersToProfessional: payment?.paymentMethod === "transfer" ? paidAmount : 0,
         notes: bookingType === "pack" ? `Pack: ${selectedPack?.name}` : "",

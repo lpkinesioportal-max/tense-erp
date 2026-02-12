@@ -97,7 +97,7 @@ export function Header() {
               <DropdownMenuLabel>Profesionales activos</DropdownMenuLabel>
               <DropdownMenuSeparator />
               {(professionals || [])
-                .filter((prof) => prof.status === "active" || prof.isActive)
+                .filter((prof) => prof.status === "active" && prof.isActive)
                 .map((prof) => {
                   const color = getColorForProfessional(prof.specialty)
                   const isChecked = selectedProfessionalIds.includes(prof.id)

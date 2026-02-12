@@ -47,6 +47,14 @@ const configSections = [
     color: "bg-slate-500",
     roles: ["super_admin"],
   },
+  {
+    title: "Convenios",
+    description: "Gestionar obras sociales y descuentos",
+    icon: Building2,
+    href: "/configuracion/convenios",
+    color: "bg-indigo-500",
+    roles: ["super_admin", "admin", "recebcion"],
+  },
 ]
 
 export default function ConfiguracionPage() {

@@ -16,7 +16,7 @@ import {
   transactionTypeLabels,
   paymentMethodLabels,
 } from "@/lib/utils"
-import { ArrowLeft, Edit, Calendar, DollarSign, Phone, Mail, FileText } from "lucide-react"
+import { ArrowLeft, Edit, Calendar, DollarSign, Phone, Mail, FileText, Building2 } from "lucide-react"
 import { ClientDialog } from "./client-dialog"
 import type { Client } from "@/lib/types"
 
@@ -26,8 +26,10 @@ interface ClientProfileProps {
 }
 
 export function ClientProfile({ client, onBack }: ClientProfileProps) {
-  const { appointments, transactions, serviceConfigs, professionals } = useData()
+  const { appointments, transactions, serviceConfigs, professionals, covenants } = useData()
   const [showEditDialog, setShowEditDialog] = useState(false)
+
+  const clientCovenant = covenants?.find(c => c.id === client.covenantId)
 
   const clientAppointments = (appointments || []).filter((a) => a.clientId === client.id)
   const clientTransactions = (transactions || []).filter((t) => t.clientId === client.id)
@@ -59,7 +61,15 @@ export function ClientProfile({ client, onBack }: ClientProfileProps) {
           <ArrowLeft className="h-5 w-5" />
         </Button>
         <div className="flex-1">
-          <h2 className="text-2xl font-bold">{client.name}</h2>
+          <div className="flex items-center gap-3">
+            <h2 className="text-2xl font-bold">{client.name}</h2>
+            {clientCovenant && (
+              <Badge variant="secondary" className="bg-indigo-100 text-indigo-700 hover:bg-indigo-100 border-indigo-200">
+                <Building2 className="mr-1 h-3 w-3" />
+                {clientCovenant.name}
+              </Badge>
+            )}
+          </div>
           <p className="text-muted-foreground">Cliente desde {formatDate(client.createdAt)}</p>
         </div>
         <Button variant="outline" onClick={() => setShowEditDialog(true)}>
@@ -116,12 +126,27 @@ export function ClientProfile({ client, onBack }: ClientProfileProps) {
             <div className="flex items-center gap-3">
               <Calendar className="h-5 w-5 text-muted-foreground" />
               <div>
-                <p className="text-xs text-muted-foreground">Total Turnos</p>
                 <p className="font-medium">{clientAppointments.length}</p>
               </div>
             </div>
           </CardContent>
         </Card>
+
+        {clientCovenant && (
+          <Card className="border-indigo-100 bg-indigo-50/30">
+            <CardContent className="p-4">
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-lg bg-indigo-500 text-white">
+                  <Building2 className="h-4 w-4" />
+                </div>
+                <div>
+                  <p className="text-xs text-indigo-600 font-semibold uppercase tracking-wider">Convenio Activo</p>
+                  <p className="font-bold text-indigo-900">{clientCovenant.discountPercentage}% de Descuento</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
       </div>
 
       {/* Notes */}
@@ -179,7 +204,7 @@ export function ClientProfile({ client, onBack }: ClientProfileProps) {
                   </div>
                   <div className="flex items-center gap-3">
                     <div className="text-right">
-                      <p className="font-medium">{formatCurrency(apt.totalAmount)}</p>
+                      <p className="font-medium">{formatCurrency(apt.finalPrice)}</p>
                       {apt.depositAmount > 0 && (
                         <p className="text-xs text-success">Seña: {formatCurrency(apt.depositAmount)}</p>
                       )}
@@ -223,7 +248,7 @@ export function ClientProfile({ client, onBack }: ClientProfileProps) {
                     </div>
                   </div>
                   <div className="flex items-center gap-3">
-                    <p className="font-medium">{formatCurrency(apt.totalAmount)}</p>
+                    <p className="font-medium">{formatCurrency(apt.finalPrice)}</p>
                     <Badge variant="outline" className={cn(statusColors[apt.status])}>
                       {statusLabels[apt.status]}
                     </Badge>
@@ -268,6 +293,9 @@ export function ClientProfile({ client, onBack }: ClientProfileProps) {
                     <p className="font-medium">{transactionTypeLabels[txn.type]}</p>
                     <p className="text-sm text-muted-foreground">
                       {formatDate(txn.date)} • {paymentMethodLabels[txn.paymentMethod]}
+                      {txn.professionalId && (
+                        <> • <span className="text-xs italic">A cargo de: {getProfessional(txn.professionalId)?.name || "Profesional"}</span></>
+                      )}
                     </p>
                   </div>
                   <p className={cn("font-semibold", txn.amount > 0 ? "text-success" : "text-destructive")}>
