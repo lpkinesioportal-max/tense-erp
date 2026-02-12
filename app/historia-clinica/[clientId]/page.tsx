@@ -68,7 +68,6 @@ import {
   History as HistoryIcon
 } from "lucide-react"
 import { supabase } from "@/lib/supabase-client"
-import { deleteLog } from "@/lib/exercise-logs.storage"
 import { toast } from "sonner"
 import Link from "next/link"
 import { cn } from "@/lib/utils"
@@ -98,6 +97,7 @@ export default function PatientHistoryPage() {
     clinicalEntries,
     loadClinicalEntries,
     saveClinicalEntry,
+    deleteClinicalEntry,
   } = useData()
 
   // Load entries on mount
@@ -110,7 +110,7 @@ export default function PatientHistoryPage() {
   const handleDeleteExerciseLog = async (logId: string) => {
     if (confirm("¿Estás seguro de que deseas eliminar este registro de sesión del paciente?")) {
       try {
-        await deleteLog(logId)
+        await deleteClinicalEntry(logId)
         toast.success("Registro eliminado correctamente")
         // Refresh entries
         if (clientId) {
@@ -1146,7 +1146,7 @@ function ExerciseListEditor({ value, onChange, serviceType = 'general' }: { valu
 
   const addExercise = () => {
     onChange([...exercises, {
-      id: Date.now().toString(),
+      id: Date.now().toString() + Math.random().toString(36).slice(2, 9),
       title: '',
       description: '',
       setsReps: '',

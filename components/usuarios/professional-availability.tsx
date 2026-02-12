@@ -8,7 +8,12 @@ import { Switch } from "@/components/ui/switch"
 import { Badge } from "@/components/ui/badge"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Plus, X, Clock, Calendar, Settings } from "lucide-react"
-import type { Professional, TimeSlot, ProfessionalAvailability } from "@/lib/types"
+import type { Professional, ProfessionalAvailability } from "@/lib/types"
+
+interface TimeSlot {
+  start: string
+  end: string
+}
 
 const DAYS_OF_WEEK = [
   { value: 0, label: "Domingo", short: "Dom" },
@@ -201,10 +206,16 @@ export function ProfessionalAvailabilityConfig({ professional, onSave }: Props) 
                         <Badge key={i} variant="secondary" className="text-xs font-normal gap-1">
                           {slot.start} - {slot.end}
                           {editingDay === day.dayOfWeek && (
-                            <X
-                              className="h-3 w-3 cursor-pointer hover:text-destructive"
-                              onClick={() => removeSlot(day.dayOfWeek, i)}
-                            />
+                            <button
+                              type="button"
+                              className="ml-1 p-0.5 rounded-full hover:bg-destructive hover:text-white transition-colors focus:outline-none"
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                removeSlot(day.dayOfWeek, i)
+                              }}
+                            >
+                              <X className="h-3 w-3" />
+                            </button>
                           )}
                         </Badge>
                       ))}
@@ -222,7 +233,7 @@ export function ProfessionalAvailabilityConfig({ professional, onSave }: Props) 
                             <Input
                               type="time"
                               value={newSlot.start}
-                              onChange={(e) => setNewSlot((prev) => ({ ...prev, start: e.target.value }))}
+                              onChange={(e) => setNewSlot((prev: TimeSlot) => ({ ...prev, start: e.target.value }))}
                               className="h-8"
                             />
                           </div>
@@ -231,7 +242,7 @@ export function ProfessionalAvailabilityConfig({ professional, onSave }: Props) 
                             <Input
                               type="time"
                               value={newSlot.end}
-                              onChange={(e) => setNewSlot((prev) => ({ ...prev, end: e.target.value }))}
+                              onChange={(e) => setNewSlot((prev: TimeSlot) => ({ ...prev, end: e.target.value }))}
                               className="h-8"
                             />
                           </div>

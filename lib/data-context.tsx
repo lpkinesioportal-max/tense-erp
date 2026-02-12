@@ -1,8 +1,8 @@
 "use client"
 
 import type React from "react"
-import { createContext, useContext, useState, useEffect } from "react"
-import type {
+import { createContext, useContext, useState, useEffect, useCallback } from "react"
+import {
   User,
   Professional,
   Client,
@@ -36,6 +36,7 @@ import type {
   MedicalRecord,
   CashTransfer,
   PatientDailyLog,
+  UserStatus,
   PatientTask,
   PatientTaskStatus,
   ProgressPoint,
@@ -79,6 +80,9 @@ interface DataContextType {
   deleteProfessional: (id: string) => void
   selectedProfessionalId: string | null
   setSelectedProfessionalId: (id: string | null) => void
+  selectedProfessionalIds: string[]
+  setSelectedProfessionalIds: (ids: string[]) => void
+  toggleProfessionalSelection: (id: string) => void
 
   // Clients
   clients: Client[]
@@ -248,17 +252,19 @@ interface DataContextType {
 
   medicalRecords: MedicalRecord[]
   getMedicalRecord: (clientId: string) => MedicalRecord | undefined
+
+  // Clinical Entries
+  clinicalEntries: ClinicalEntry[]
+  loadClinicalEntries: (clientId: string) => Promise<ClinicalEntry[]>
+  saveClinicalEntry: (entry: ClinicalEntry) => Promise<void>
+  deleteClinicalEntry: (id: string) => Promise<void>
+  uploadClinicalMedia: (file: File) => Promise<string | null>
   addMedicalRecord: (record: MedicalRecord) => void
   updateMedicalRecord: (clientId: string, record: MedicalRecord) => void
   addPatientLog: (clientId: string, log: Omit<PatientDailyLog, "id" | "createdAt">) => void
   addPatientTask: (clientId: string, task: Omit<PatientTask, "id" | "createdAt" | "updatedAt">) => void
   updatePatientTaskStatus: (clientId: string, taskId: string, status: PatientTaskStatus, evidence?: any) => void
 
-  // Clinical Entries
-  clinicalEntries: ClinicalEntry[]
-  loadClinicalEntries: (clientId: string) => Promise<ClinicalEntry[]>
-  saveClinicalEntry: (entry: ClinicalEntry) => Promise<void>
-  uploadClinicalMedia: (file: File) => Promise<string | null>
 
   // Cash Transfers
   cashTransfers: CashTransfer[]
@@ -317,6 +323,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   const [clients, setClients] = useState<Client[]>([])
   const [professionals, setProfessionals] = useState<Professional[]>([])
   const [selectedProfessionalId, setSelectedProfessionalId] = useState<string | null>(null)
+  const [selectedProfessionalIds, setSelectedProfessionalIds] = useState<string[]>([])
   const [users, setUsers] = useState<User[]>([])
   const [transactions, setTransactions] = useState<Transaction[]>([])
   const [settlements, setSettlements] = useState<Settlement[]>([])
@@ -449,23 +456,32 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         ),
       ])
 
-      // Use Supabase clients exclusively (only fallback to mock if DB is empty AND no users exist)
+      // Use Supabase data first, then LocalStorage, final fallback to mock
       const isFirstRun = supabaseProfs.length === 0 && supabaseClients.length === 0 && supabaseUsers.length === 0;
 
       // Set appointments
-      setAppointments(supabaseAppts.length > 0 ? supabaseAppts : mockAppointments)
+      const storedAppts = loadFromStorage<Appointment[]>("tense_erp_appointments", [])
+      const finalAppts = supabaseAppts.length > 0 ? supabaseAppts : (storedAppts.length > 0 ? storedAppts : mockAppointments)
+      setAppointments(finalAppts)
+      saveToStorage("tense_erp_appointments", finalAppts)
 
-      const finalClients = !isFirstRun ? supabaseClients : mockClients
+      // Set clients
+      const storedClients = loadFromStorage<Client[]>("tense_erp_clients", [])
+      const finalClients = supabaseClients.length > 0 ? supabaseClients : (storedClients.length > 0 ? storedClients : mockClients)
       setClients(finalClients)
+      saveToStorage("tense_erp_clients", finalClients)
 
-      // Use Supabase professionals exclusively
-      const finalProfs = !isFirstRun ? supabaseProfs : mockProfessionals
+      // Set professionals
+      const storedProfs = loadFromStorage<Professional[]>("tense_erp_professionals", [])
+      const finalProfs = supabaseProfs.length > 0 ? supabaseProfs : (storedProfs.length > 0 ? storedProfs : mockProfessionals)
       setProfessionals(finalProfs)
+      saveToStorage("tense_erp_professionals", finalProfs)
 
-      // Use Supabase users exclusively
-      console.log("Usuarios cargados de Supabase:", supabaseUsers.length)
-      const finalUsers = !isFirstRun ? supabaseUsers : mockUsers
+      // Set users
+      const storedUsers = loadFromStorage<User[]>("tense_erp_users", [])
+      const finalUsers = supabaseUsers.length > 0 ? supabaseUsers : (storedUsers.length > 0 ? storedUsers : mockUsers)
       setUsers(finalUsers)
+      saveToStorage("tense_erp_users", finalUsers)
 
       setTransactions(loadFromStorage("tense_erp_transactions", mockTransactions))
       setSettlements(loadFromStorage("tense_erp_settlements", mockSettlements))
@@ -785,7 +801,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   }, [interProfessionalAdjustments, isInitialized])
 
   // Clinical Entries Implementation
-  const loadClinicalEntries = async (clientId: string): Promise<ClinicalEntry[]> => {
+  const loadClinicalEntries = useCallback(async (clientId: string): Promise<ClinicalEntry[]> => {
     if (!isSupabaseConfigured()) return []
 
     try {
@@ -810,7 +826,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         professionalId: '',
         serviceCategory: 'kinesiologia',
         formType: 'exercise_log' as any,
-        sessionNumber: log.sessionNumber || 0,
+        sessionNumber: (log as any).sessionNumber || 0,
         attentionDate: log.date,
         routineId: log.routineId, // Top-level for easier filtering
         visibleToPatient: true,
@@ -842,9 +858,9 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       }
       return []
     }
-  }
+  }, [])
 
-  const saveClinicalEntry = async (entry: ClinicalEntry) => {
+  const saveClinicalEntry = useCallback(async (entry: ClinicalEntry) => {
     if (!isSupabaseConfigured()) return
 
     try {
@@ -881,9 +897,45 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       }
       throw error
     }
-  }
+  }, [])
 
-  const uploadClinicalMedia = async (file: File): Promise<string | null> => {
+  const deleteClinicalEntry = useCallback(async (id: string) => {
+    if (!isSupabaseConfigured()) return
+
+    try {
+      // Try deleting from clinical_entries
+      const { error: error1 } = await supabase
+        .from('clinical_entries')
+        .delete()
+        .eq('id', id)
+
+      if (error1) {
+        console.error("Error deleting from clinical_entries:", error1)
+      }
+
+      // Also try deleting from exercise_logs (for legacy or patient entries)
+      const { error: error2 } = await supabase
+        .from('exercise_logs')
+        .delete()
+        .eq('id', id)
+
+      if (error2) {
+        // Just log warning, key might not exist which is fine
+        console.warn("Error deleting from exercise_logs (might not exist):", error2)
+      }
+
+      if (error1 && error2) {
+        throw new Error("Failed to delete entry from both tables")
+      }
+
+      setClinicalEntries(prev => prev.filter(e => e.id !== id))
+    } catch (error) {
+      console.error("Error deleting clinical entry:", error)
+      throw error
+    }
+  }, [])
+
+  const uploadClinicalMedia = useCallback(async (file: File): Promise<string | null> => {
     if (!isSupabaseConfigured()) return null
 
     try {
@@ -898,13 +950,12 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       if (error) throw error
 
       // For private buckets, we return the path. 
-      // The frontend will generate a signed URL when needed.
       return filePath
     } catch (error) {
-      console.error("Error uploading media:", error)
-      throw error
+      console.error("Error uploading clinical media:", error)
+      return null
     }
-  }
+  }, [])
 
   // Users
   const addUser = async (userData: Omit<User, "id" | "createdAt">) => {
@@ -977,7 +1028,11 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       ])
     }
 
-    setUsers((prev) => [...prev, newUser])
+    setUsers((prev) => {
+      const updated = [...prev, newUser]
+      saveToStorage("tense_erp_users", updated)
+      return updated
+    })
     syncToSupabase(SYNC_CONFIG.users.tableName, [newUser])
   }
 
@@ -1003,20 +1058,32 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     const user = users.find(u => u.id === id)
     console.log(`[Cascaded Delete] Deleting user: ${id}`)
 
-    setUsers((prev) => prev.filter((u) => u.id !== id))
+    setUsers((prev) => {
+      const updated = prev.filter((u) => u.id !== id)
+      saveToStorage("tense_erp_users", updated)
+      return updated
+    })
     deleteFromSupabase(SYNC_CONFIG.users.tableName, id)
 
     // Delete linked professional if exists
     if (user?.professionalId) {
       console.log(`[Cascaded Delete] Linking: Deleting professional ${user.professionalId}`)
-      setProfessionals(prev => prev.filter(p => p.id !== user.professionalId))
+      setProfessionals(prev => {
+        const updated = prev.filter(p => p.id !== user.professionalId)
+        saveToStorage("tense_erp_professionals", updated)
+        return updated
+      })
       deleteFromSupabase(SYNC_CONFIG.professionals.tableName, user.professionalId)
     }
 
     // Delete linked client if exists
     if (user?.clientId) {
       console.log(`[Cascaded Delete] Linking: Deleting client ${user.clientId}`)
-      setClients(prev => prev.filter(c => c.id !== user.clientId))
+      setClients(prev => {
+        const updated = prev.filter(c => c.id !== user.clientId)
+        saveToStorage("tense_erp_clients", updated)
+        return updated
+      })
       deleteFromSupabase(SYNC_CONFIG.clients.tableName, user.clientId)
     }
   }
@@ -1028,35 +1095,57 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
 
     // Al agregar un profesional, también creamos su cuenta de usuario si no existe
     setUsers((prev) => {
-      if (prev.some(u => u.email === professional.email)) return prev;
+      const existingUserIndex = prev.findIndex(u => u.email === professional.email)
+      let updated: User[]
 
-      const newUser: User = {
-        id: `user-${Date.now()}`,
-        name: professional.name,
-        email: professional.email,
-        role: "profesional",
-        status: "active",
-        isActive: true,
-        professionalId: professionalId,
-        password: professional.password || "123456",
-        createdAt: new Date()
+      if (existingUserIndex >= 0) {
+        updated = [...prev]
+        updated[existingUserIndex] = {
+          ...updated[existingUserIndex],
+          professionalId: professionalId,
+          role: "profesional"
+        }
+        syncToSupabase(SYNC_CONFIG.users.tableName, [updated[existingUserIndex]])
+      } else {
+        const newUser: User = {
+          id: `user-${Date.now()}`,
+          name: professional.name,
+          email: professional.email,
+          role: "profesional",
+          status: "active",
+          isActive: true,
+          professionalId: professionalId,
+          password: professional.password || "123456",
+          createdAt: new Date()
+        }
+        updated = [...prev, newUser]
+        syncToSupabase(SYNC_CONFIG.users.tableName, [newUser])
       }
-      return [...prev, newUser]
+      saveToStorage("tense_erp_users", updated)
+      return updated
     })
 
-    setProfessionals((prev) => [...prev, newProfessional])
-    setCashRegisters((prev) => [
-      ...prev,
-      {
-        id: `cash-${professionalId}`,
-        type: "professional",
-        professionalId: professionalId,
-        date: new Date(),
-        openingBalance: 0,
-        status: "open",
-        transactions: [],
-      },
-    ])
+    setProfessionals((prev) => {
+      const updated = [...prev, newProfessional]
+      saveToStorage("tense_erp_professionals", updated)
+      return updated
+    })
+    setCashRegisters((prev) => {
+      const updated: CashRegister[] = [
+        ...prev,
+        {
+          id: `cash-${professionalId}`,
+          type: "professional" as CashRegisterType,
+          professionalId: professionalId,
+          date: new Date(),
+          openingBalance: 0,
+          status: "open",
+          transactions: [],
+        },
+      ]
+      saveToStorage("tense_erp_cashRegisters", updated)
+      return updated
+    })
 
     // Sync to Supabase directly
     syncToSupabase(SYNC_CONFIG.professionals.tableName, [newProfessional])
@@ -1069,26 +1158,32 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       if (updatedProf) {
         syncToSupabase(SYNC_CONFIG.professionals.tableName, [updatedProf])
       }
+      saveToStorage("tense_erp_professionals", updated)
       return updated
     })
 
     // Sincronizamos con el usuario vinculado
     if (data.name || data.email || data.isActive !== undefined || data.status !== undefined) {
-      setUsers((prev) => prev.map((u) => {
-        if (u.professionalId === id) {
-          const isActive = data.isActive !== undefined ? data.isActive : (data.status === "active")
-          return {
-            ...u,
-            ...(data.name ? { name: data.name } : {}),
-            ...(data.email ? { email: data.email } : {}),
-            ...(data.isActive !== undefined || data.status !== undefined ? {
-              isActive: isActive,
-              status: isActive ? "active" : "inactive"
-            } : {})
+      setUsers((prev) => {
+        const updated = prev.map((u) => {
+          if (u.professionalId === id) {
+            const isActive = data.isActive !== undefined ? data.isActive : (data.status === "active")
+            const updatedUser: User = {
+              ...u,
+              ...(data.name ? { name: data.name } : {}),
+              ...(data.email ? { email: data.email } : {}),
+              ...(data.isActive !== undefined || data.status !== undefined ? {
+                isActive: isActive,
+                status: (isActive ? "active" : "inactive") as UserStatus
+              } : {})
+            }
+            return updatedUser
           }
-        }
-        return u
-      }))
+          return u
+        })
+        saveToStorage("tense_erp_users", updated)
+        return updated
+      })
     }
   }
 
@@ -1134,7 +1229,11 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       syncToSupabase(SYNC_CONFIG.users.tableName, [newUser])
     }
 
-    setClients((prev) => [...prev, newClient])
+    setClients((prev) => {
+      const updated = [...prev, newClient]
+      saveToStorage("tense_erp_clients", updated)
+      return updated
+    })
     syncToSupabase(SYNC_CONFIG.clients.tableName, [newClient])
   }
 
@@ -1145,6 +1244,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       if (updatedClient) {
         syncToSupabase(SYNC_CONFIG.clients.tableName, [updatedClient])
       }
+      saveToStorage("tense_erp_clients", updated)
       return updated
     })
 
@@ -1170,14 +1270,22 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
 
   const deleteClient = (id: string) => {
     console.log(`[Cascaded Delete] Deleting client: ${id}`)
-    setClients((prev) => prev.filter((c) => c.id !== id))
+    setClients((prev) => {
+      const updated = prev.filter((c) => c.id !== id)
+      saveToStorage("tense_erp_clients", updated)
+      return updated
+    })
     deleteFromSupabase(SYNC_CONFIG.clients.tableName, id)
 
     // Also delete associated user
     const userToDelete = users.find(u => u.clientId === id)
     if (userToDelete) {
       console.log(`[Cascaded Delete] Linking: Deleting user ${userToDelete.id}`)
-      setUsers((prev) => prev.filter((u) => u.id !== userToDelete.id))
+      setUsers((prev) => {
+        const updated = prev.filter((u) => u.id !== userToDelete.id)
+        saveToStorage("tense_erp_users", updated)
+        return updated
+      })
       deleteFromSupabase(SYNC_CONFIG.users.tableName, userToDelete.id)
     }
   }
@@ -1352,6 +1460,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     }
     setAppointments((prev) => {
       const updated = [...prev, newAppointment]
+      saveToStorage("tense_erp_appointments", updated)
       return updated
     })
 
@@ -1369,6 +1478,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       if (updatedApt) {
         syncToSupabase(SYNC_CONFIG.appointments.tableName, [updatedApt])
       }
+      saveToStorage("tense_erp_appointments", updated)
       return updated
     })
 
@@ -1420,6 +1530,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       if (updatedApt) {
         syncToSupabase(SYNC_CONFIG.appointments.tableName, [updatedApt])
       }
+      saveToStorage("tense_erp_appointments", updated)
       return updated
     })
   }
@@ -1464,6 +1575,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       if (updatedApt) {
         syncToSupabase(SYNC_CONFIG.appointments.tableName, [updatedApt])
       }
+      saveToStorage("tense_erp_appointments", updated)
       return updated
     })
 
@@ -1542,7 +1654,11 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   }
 
   const deleteAppointment = (appointmentId: string) => {
-    setAppointments((prev) => prev.filter((a) => a.id !== appointmentId))
+    setAppointments((prev) => {
+      const updated = prev.filter((a) => a.id !== appointmentId)
+      saveToStorage("tense_erp_appointments", updated)
+      return updated
+    })
     deleteFromSupabase(SYNC_CONFIG.appointments.tableName, appointmentId)
   }
 
@@ -2903,6 +3019,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     clinicalEntries,
     loadClinicalEntries,
     saveClinicalEntry,
+    deleteClinicalEntry,
     uploadClinicalMedia,
     cashTransfers,
     setCashTransfers,
@@ -2911,6 +3028,20 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     updateCashTransfer,
     companyInfo,
     updateCompanyInfo,
+    selectedProfessionalIds,
+    setSelectedProfessionalIds,
+    toggleProfessionalSelection: (id: string) => {
+      setSelectedProfessionalIds(prev => {
+        const newIds = prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]
+        // Maintain single selection for backward compatibility
+        if (newIds.length > 0) {
+          setSelectedProfessionalId(newIds[0])
+        } else {
+          setSelectedProfessionalId(null)
+        }
+        return newIds
+      })
+    },
     isInitialized,
   }
 

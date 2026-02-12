@@ -13,12 +13,13 @@ import {
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useAuth } from "@/lib/auth-context"
 import { useData } from "@/lib/data-context"
+import { Checkbox } from "@/components/ui/checkbox"
 import { useRouter, usePathname } from "next/navigation"
 import { getServiceColor, SERVICE_COLOR_MAP } from "@/lib/service-colors"
 
 export function Header() {
   const { user, logout, hasPermission } = useAuth()
-  const { users, professionals, selectedProfessionalId, setSelectedProfessionalId, serviceConfigs } = useData()
+  const { users, professionals, selectedProfessionalId, setSelectedProfessionalId, selectedProfessionalIds, setSelectedProfessionalIds, toggleProfessionalSelection, serviceConfigs } = useData()
   const router = useRouter()
   const pathname = usePathname()
 
@@ -72,33 +73,56 @@ export function Header() {
         )}
 
         {hasPermission(["super_admin", "admin"]) && (
-          <Select value={selectedProfessionalId || undefined} onValueChange={setSelectedProfessionalId}>
-            <SelectTrigger className="w-[250px]">
-              <div className="flex items-center gap-2">
-                {selectedColor && <span className={`w-3 h-3 rounded-full ${selectedColor.bg} shrink-0`} />}
-                <SelectValue placeholder="Seleccionar profesional" />
-              </div>
-            </SelectTrigger>
-            <SelectContent>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" className="w-[250px] justify-between">
+                <div className="flex items-center gap-2 truncate">
+                  {selectedProfessionalIds.length === 0 ? (
+                    <span className="text-muted-foreground">Seleccionar profesionales</span>
+                  ) : selectedProfessionalIds.length === 1 ? (
+                    <>
+                      {selectedColor && <span className={`w-3 h-3 rounded-full ${selectedColor.bg} shrink-0`} />}
+                      <span className="truncate">{selectedProfessional?.name}</span>
+                    </>
+                  ) : (
+                    <span className="font-medium text-primary">
+                      {selectedProfessionalIds.length} profesionales seleccionados
+                    </span>
+                  )}
+                </div>
+                <Bell className="h-4 w-4 opacity-50 ml-2 rotate-90" /> {/* Placeholder icon for arrow */}
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent className="w-[300px] max-h-[400px] overflow-y-auto" align="start">
+              <DropdownMenuLabel>Profesionales activos</DropdownMenuLabel>
+              <DropdownMenuSeparator />
               {(professionals || [])
-                .filter((prof) => {
-                  const profUser = users.find((u) => u.professionalId === prof.id)
-                  return profUser ? profUser.status === "active" : false
-                })
+                .filter((prof) => prof.status === "active" || prof.isActive)
                 .map((prof) => {
                   const color = getColorForProfessional(prof.specialty)
+                  const isChecked = selectedProfessionalIds.includes(prof.id)
                   return (
-                    <SelectItem key={prof.id} value={prof.id}>
-                      <div className="flex items-center gap-2">
-                        <span className={`w-3 h-3 rounded-full ${color.bg} shrink-0`} />
-                        <span>{prof.name}</span>
-                        <span className={`text-xs ${color.text} ml-1`}>({prof.specialty})</span>
+                    <div
+                      key={prof.id}
+                      className="flex items-center gap-3 px-3 py-2 cursor-pointer hover:bg-accent transition-colors"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        toggleProfessionalSelection(prof.id);
+                      }}
+                    >
+                      <div className="pointer-events-none">
+                        <Checkbox checked={isChecked} />
                       </div>
-                    </SelectItem>
+                      <div className="flex items-center gap-2 flex-1">
+                        <span className={`w-3 h-3 rounded-full ${color.bg} shrink-0`} />
+                        <span className="text-sm font-medium">{prof.name}</span>
+                        <span className={`text-[10px] ${color.text} ml-auto`}>({prof.specialty})</span>
+                      </div>
+                    </div>
                   )
                 })}
-            </SelectContent>
-          </Select>
+            </DropdownMenuContent>
+          </DropdownMenu>
         )}
       </div>
 

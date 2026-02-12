@@ -181,11 +181,6 @@ export function ProfessionalsConfig() {
               </TableHeader>
               <TableBody>
                 {(professionals || [])
-                  .filter((prof) => {
-                    // Solo mostrar profesionales que tengan una cuenta de usuario activa
-                    const profUser = users.find((u) => u.professionalId === prof.id)
-                    return profUser ? profUser.status === "active" : false
-                  })
                   .map((prof) => {
                     const stats = getProfessionalStats(prof.id)
                     const availabilityCount = getAvailabilityCount(prof)
@@ -296,12 +291,45 @@ export function ProfessionalsConfig() {
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="name">Nombre</Label>
-              <Input
-                id="name"
-                value={formData.name}
-                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                required
-              />
+              {!editingProfessional ? (
+                <Select
+                  value={formData.email} // Usamos email como valor único para identificar al usuario
+                  onValueChange={(email) => {
+                    const selectedUser = users.find(u => u.email === email)
+                    if (selectedUser) {
+                      setFormData({
+                        ...formData,
+                        name: selectedUser.name,
+                        email: selectedUser.email,
+                        phone: selectedUser.phone || "",
+                      })
+                    }
+                  }}
+                >
+                  <SelectTrigger id="name">
+                    <SelectValue placeholder="Seleccionar usuario profesional" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {(users || [])
+                      .filter((u) => u.role === "profesional" && !professionals.some(p => p.email === u.email))
+                      .map((u) => (
+                        <SelectItem key={u.id} value={u.email}>
+                          {u.name} ({u.email})
+                        </SelectItem>
+                      ))}
+                    {(users || []).filter((u) => u.role === "profesional" && !professionals.some(p => p.email === u.email)).length === 0 && (
+                      <p className="text-xs text-center p-2 text-muted-foreground">No hay usuarios profesionales disponibles</p>
+                    )}
+                  </SelectContent>
+                </Select>
+              ) : (
+                <Input
+                  id="name"
+                  value={formData.name}
+                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                  required
+                />
+              )}
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
