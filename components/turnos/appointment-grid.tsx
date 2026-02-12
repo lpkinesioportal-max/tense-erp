@@ -8,6 +8,8 @@ import { ChevronLeft, ChevronRight, DollarSign, Check, Ban, Plus, Clock, CheckCi
 import { AppointmentDetailModal } from "./appointment-detail-modal"
 import { BookingWizard } from "./booking-wizard"
 import { useToast } from "@/hooks/use-toast"
+import { ShareAvailabilityDialog } from "./share-availability-dialog"
+import { MessageCircle } from "lucide-react"
 import type { Appointment } from "@/lib/types"
 
 export function AppointmentGrid() {
@@ -27,6 +29,7 @@ export function AppointmentGrid() {
   const { toast } = useToast()
   const { generateDailySettlement, settlements, deleteSettlement } = useData()
   const [showConfirmDelete, setShowConfirmDelete] = useState<string | null>(null)
+  const [showShareDialog, setShowShareDialog] = useState(false)
 
   const activeProfessionals = useMemo(() => {
     if (selectedProfessionalIds.length > 0) {
@@ -90,7 +93,8 @@ export function AppointmentGrid() {
     const slotMinutes = timeToMinutes(slotTime)
 
     return appointments.find((apt) => {
-      if (apt.professionalIdCalendario !== profId) return false
+      const aptProfId = apt.professionalIdCalendario || apt.professionalId
+      if (aptProfId !== profId) return false
       if (new Date(apt.date).toDateString() !== dateStr) return false
 
       const startMinutes = timeToMinutes(apt.startTime)
@@ -141,7 +145,8 @@ export function AppointmentGrid() {
     const dateStr = date.toDateString()
 
     return !appointments.some((apt) => {
-      if (apt.professionalIdCalendario !== profId) return false
+      const aptProfId = apt.professionalIdCalendario || apt.professionalId
+      if (aptProfId !== profId) return false
       if (new Date(apt.date).toDateString() !== dateStr) return false
 
       const aptStart = timeToMinutes(apt.startTime)
@@ -409,8 +414,7 @@ export function AppointmentGrid() {
   }
 
   const numProfs = activeProfessionals.length
-  const totalGridColumns = 1 + (7 * numProfs)
-  const gridColumns = `50px repeat(7, repeat(${numProfs}, 1fr))`
+  const gridColumns = `50px repeat(${7 * numProfs}, 1fr)`
 
   return (
     <div className="space-y-4">
@@ -429,6 +433,10 @@ export function AppointmentGrid() {
           <Button onClick={handleOpenWizard}>
             <Plus className="h-4 w-4 mr-2" />
             Agendar
+          </Button>
+          <Button variant="outline" onClick={() => setShowShareDialog(true)}>
+            <MessageCircle className="h-4 w-4 mr-2" />
+            Compartir
           </Button>
           <Button onClick={handleOpenOvertimeWizard} variant="secondary">
             <Plus className="h-4 w-4 mr-2" />
@@ -475,11 +483,17 @@ export function AppointmentGrid() {
                 </div>
 
                 {numProfs > 1 && (
-                  <div className="flex text-[9px] uppercase tracking-tighter">
+                  <div
+                    className="border-t border-border/50 text-[9px] uppercase tracking-tighter"
+                    style={{
+                      display: "grid",
+                      gridTemplateColumns: `repeat(${numProfs}, 1fr)`
+                    }}
+                  >
                     {activeProfessionals.map((prof) => (
                       <div
                         key={prof.id}
-                        className="flex-1 px-1 py-1 text-center truncate border-r border-border last:border-r-0 font-bold opacity-70"
+                        className="px-1 py-1 text-center truncate border-r border-border last:border-r-0 font-bold opacity-70"
                         title={prof.name}
                       >
                         {prof.name.split(' ')[1] || prof.name.split(' ')[0]}
@@ -491,7 +505,7 @@ export function AppointmentGrid() {
             ))}
           </div>
 
-          <div className="max-h-[700px] overflow-y-auto">
+          <div className="max-h-[700px] overflow-y-auto" style={{ scrollbarGutter: 'stable' }}>
             <div
               className="grid"
               style={{
@@ -705,6 +719,12 @@ export function AppointmentGrid() {
         preselectedProfessionalId={preselectedSlot?.professionalId || selectedProfessionalId || undefined}
         preselectedSlot={preselectedSlot}
         isOvertimeMode={isOvertimeMode}
+      />
+
+      <ShareAvailabilityDialog
+        isOpen={showShareDialog}
+        onClose={() => setShowShareDialog(false)}
+        initialProfessionalIds={selectedProfessionalIds.length > 0 ? selectedProfessionalIds : (selectedProfessionalId ? [selectedProfessionalId] : [])}
       />
 
       {weekDays.some((d) => isToday(d)) && selectedProfessionalId && !settleStatus.allowed && (
