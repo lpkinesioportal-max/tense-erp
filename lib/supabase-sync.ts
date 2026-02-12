@@ -142,6 +142,10 @@ export const SYNC_CONFIG = {
     appointments: {
         localStorageKey: 'tense_erp_appointments',
         tableName: 'tense_appointments'
+    },
+    servicePacks: {
+        localStorageKey: 'tense_erp_servicePacks',
+        tableName: 'tense_service_packs'
     }
 } as const
 

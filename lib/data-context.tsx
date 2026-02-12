@@ -437,7 +437,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       if (typeof window === "undefined") return
 
       // Load from Supabase ONLY for main entities
-      const [supabaseAppts, supabaseClients, supabaseProfs, supabaseUsers] = await Promise.all([
+      const [supabaseAppts, supabaseClients, supabaseProfs, supabaseUsers, supabasePacks] = await Promise.all([
         loadFromSupabase<Appointment>(
           SYNC_CONFIG.appointments.tableName,
           mockAppointments
@@ -453,6 +453,10 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         loadFromSupabase<User>(
           SYNC_CONFIG.users.tableName,
           mockUsers
+        ),
+        loadFromSupabase<ServicePack>(
+          SYNC_CONFIG.servicePacks.tableName,
+          mockServicePacks
         ),
       ])
 
@@ -523,7 +527,9 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       setProducts(migratedProducts)
 
       const storedPacks = loadFromStorage("tense_erp_servicePacks", mockServicePacks)
-      setServicePacks(storedPacks.length > 0 ? storedPacks : mockServicePacks)
+      const finalPacks = supabasePacks.length > 0 ? supabasePacks : (storedPacks.length > 0 ? storedPacks : mockServicePacks)
+      setServicePacks(finalPacks)
+      saveToStorage("tense_erp_servicePacks", finalPacks)
       setCashRegisters(loadFromStorage("tense_erp_cashRegisters", mockCashRegisters))
       setWaitlist(loadFromStorage("tense_waitlist", []))
       setSuppliers(loadFromStorage("suppliers", []))
@@ -1309,15 +1315,33 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   // Service Packs
   const addServicePack = (pack: Omit<ServicePack, "id" | "createdAt">) => {
     const newPack: ServicePack = { ...pack, id: `pack-${Date.now()}`, createdAt: new Date() }
-    setServicePacks((prev) => [...prev, newPack])
+    setServicePacks((prev) => {
+      const updated = [...prev, newPack]
+      saveToStorage("tense_erp_servicePacks", updated)
+      return updated
+    })
+    syncToSupabase(SYNC_CONFIG.servicePacks.tableName, [newPack])
   }
 
   const updateServicePack = (id: string, data: Partial<ServicePack>) => {
-    setServicePacks((prev) => prev.map((p) => (p.id === id ? { ...p, ...data } : p)))
+    setServicePacks((prev) => {
+      const updated = prev.map((p) => (p.id === id ? { ...p, ...data } : p))
+      const updatedPack = updated.find(p => p.id === id)
+      if (updatedPack) {
+        syncToSupabase(SYNC_CONFIG.servicePacks.tableName, [updatedPack])
+      }
+      saveToStorage("tense_erp_servicePacks", updated)
+      return updated
+    })
   }
 
   const deleteServicePack = (id: string) => {
-    setServicePacks((prev) => prev.filter((p) => p.id !== id))
+    setServicePacks((prev) => {
+      const updated = prev.filter((p) => p.id !== id)
+      saveToStorage("tense_erp_servicePacks", updated)
+      return updated
+    })
+    deleteFromSupabase(SYNC_CONFIG.servicePacks.tableName, id)
   }
 
   // Products
