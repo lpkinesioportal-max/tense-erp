@@ -63,6 +63,7 @@ export default function ServiciosPage() {
     recommendedDepositPercentage: 50,
     isActive: true,
     color: "emerald",
+    description: "",
   })
 
   const [packFormData, setPackFormData] = useState({
@@ -113,8 +114,13 @@ export default function ServiciosPage() {
 
   // Service handlers
   const handleServiceSubmit = () => {
+    // Remove extra properties that are not in ServiceConfig and map correctly
+    const { duration, ...restServiceData } = serviceData
+
     const serviceDataToSubmit = {
-      ...serviceData,
+      ...restServiceData,
+      standardDuration: duration,
+      professionalPercentage: 50, // Default value
       createdAt: editingService?.createdAt || new Date(),
       updatedAt: new Date(),
     }
@@ -122,10 +128,7 @@ export default function ServiciosPage() {
     if (editingService) {
       updateServiceConfig(editingService.id, serviceDataToSubmit)
     } else {
-      addServiceConfig({
-        id: `service-${Date.now()}`,
-        ...serviceDataToSubmit,
-      })
+      addServiceConfig(serviceDataToSubmit)
     }
     setIsServiceDialogOpen(false)
     setEditingService(null)
@@ -142,6 +145,7 @@ export default function ServiciosPage() {
       recommendedDepositPercentage: service.recommendedDepositPercentage,
       isActive: service.isActive,
       color: service.color || "emerald", // Updated default color
+      description: service.description || "",
     })
     setIsServiceDialogOpen(true)
   }
@@ -161,6 +165,7 @@ export default function ServiciosPage() {
       recommendedDepositPercentage: 50,
       isActive: true,
       color: "emerald", // Updated default color
+      description: "",
     })
   }
 
@@ -172,7 +177,7 @@ export default function ServiciosPage() {
       sessionsCount: packFormData.isUnlimited ? 0 : packFormData.sessionsCount,
       validityDays: packFormData.validityDays,
       maxReschedules: packFormData.maxReschedules,
-      price: packFormData.price,
+      totalPrice: packFormData.price,
       pricePerSession: calculatePricePerSession(),
       discountPercent: calculatePackDiscount(),
       requiresDeposit: packFormData.requiresDeposit,
@@ -198,9 +203,9 @@ export default function ServiciosPage() {
       sessionsCount: pack.sessionsCount || 4,
       validityDays: pack.validityDays,
       maxReschedules: pack.maxReschedules || 2,
-      price: pack.price,
-      requiresDeposit: pack.requiresDeposit,
-      depositAmount: pack.depositAmount,
+      price: pack.totalPrice || (pack as any).price || 0,
+      requiresDeposit: pack.requiresDeposit || false,
+      depositAmount: pack.depositAmount || 0,
       isActive: pack.isActive,
       isUnlimited: pack.sessionsCount === 0,
     })
@@ -300,9 +305,8 @@ export default function ServiciosPage() {
                             key={color.value}
                             type="button"
                             onClick={() => setServiceData({ ...serviceData, color: color.value })}
-                            className={`w-7 h-7 rounded-full ${color.bg} flex items-center justify-center transition-all hover:scale-110 ${
-                              serviceData.color === color.value ? "ring-2 ring-offset-2 ring-gray-400" : ""
-                            }`}
+                            className={`w-7 h-7 rounded-full ${color.bg} flex items-center justify-center transition-all hover:scale-110 ${serviceData.color === color.value ? "ring-2 ring-offset-2 ring-gray-400" : ""
+                              }`}
                             title={color.name}
                           >
                             {serviceData.color === color.value && <Check className="h-3 w-3 text-white" />}
@@ -477,6 +481,18 @@ export default function ServiciosPage() {
                           min={0}
                         />
                         <p className="text-xs text-muted-foreground">Por sesión</p>
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Precio del Pack</Label>
+                        <div className="relative">
+                          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">$</span>
+                          <Input
+                            type="number"
+                            className="pl-7"
+                            value={packFormData.price}
+                            onChange={(e) => setPackFormData({ ...packFormData, price: Number(e.target.value) })}
+                          />
+                        </div>
                       </div>
                     </div>
 
@@ -682,26 +698,37 @@ export default function ServiciosPage() {
                           <TableCell className="text-center text-muted-foreground">{pack.validityDays} días</TableCell>
                           <TableCell className="text-right">
                             <div>
-                              <p className="font-semibold">{formatCurrency(pack.price)}</p>
-                              {pack.pricePerSession > 0 && (
+                              <p className="font-semibold">{formatCurrency(pack.totalPrice || (pack as any).price || 0)}</p>
+                              {(!pack.sessionsCount || pack.sessionsCount > 0) && (
                                 <p className="text-xs text-muted-foreground">
-                                  {formatCurrency(pack.pricePerSession)}/sesión
+                                  {pack.sessionsCount > 0
+                                    ? formatCurrency(Math.round((pack.totalPrice || (pack as any).price || 0) / pack.sessionsCount))
+                                    : formatCurrency(0)
+                                  }/sesión
                                 </p>
                               )}
                             </div>
                           </TableCell>
                           <TableCell className="text-center">
-                            {pack.discountPercent > 0 ? (
-                              <Badge className="bg-green-100 text-green-700 border-0">
-                                {pack.discountPercent}% OFF
-                              </Badge>
-                            ) : (
-                              <span className="text-muted-foreground">-</span>
-                            )}
+                            {(() => {
+                              const serviceBasePrice = getServiceBasePrice(pack.serviceId)
+                              const currentPrice = pack.totalPrice || (pack as any).price || 0
+                              const totalIndividual = serviceBasePrice * pack.sessionsCount
+                              const discount = totalIndividual > 0
+                                ? Math.round(((totalIndividual - currentPrice) / totalIndividual) * 100)
+                                : 0
+                              return discount > 0 ? (
+                                <Badge className="bg-green-100 text-green-700 border-0">
+                                  {discount}% OFF
+                                </Badge>
+                              ) : (
+                                <span className="text-muted-foreground">-</span>
+                              )
+                            })()}
                           </TableCell>
                           <TableCell className="text-center">
                             {pack.requiresDeposit ? (
-                              <span className="text-sm">{formatCurrency(pack.depositAmount)}</span>
+                              <span className="text-sm">{formatCurrency(pack.depositAmount || 0)}</span>
                             ) : (
                               <span className="text-muted-foreground text-sm">No</span>
                             )}

@@ -361,6 +361,9 @@ export interface ServicePack {
   sessionsCount: number
   totalPrice: number
   validityDays: number
+  maxReschedules?: number
+  requiresDeposit?: boolean
+  depositAmount?: number
   isActive: boolean
   createdAt: Date
 }
