@@ -79,6 +79,7 @@ import { ClinicalFormConfig, ClinicalFormType } from "@/lib/types"
 import { BodyMap } from "@/components/medical/body-map"
 import { AdherenceInput } from "@/components/medical/adherence-input"
 import { VideoUploadField } from "@/components/ui/video-upload-field"
+import { MealPlanEditor } from "@/components/medical/meal-plan-editor"
 
 export default function PatientHistoryPage() {
   const { clientId } = useParams()
@@ -186,7 +187,7 @@ export default function PatientHistoryPage() {
     )
   }
   // State
-  const [activeCategory, setActiveCategory] = useState<string>("Kinesiología")
+  const [activeCategory, setActiveCategory] = useState<string>("kinesiologia")
   const [editingEntry, setEditingEntry] = useState<any>(null) // New state for editing
   const [isNewEntryOpen, setIsNewEntryOpen] = useState(false)
   const [selectedFormType, setSelectedFormType] = useState<ClinicalFormType | null>(null)
@@ -235,7 +236,7 @@ export default function PatientHistoryPage() {
     const newEntry = {
       clientId: client.id,
       professionalId: currentUser?.professionalId || null,
-      serviceCategory: profTrackingModal.serviceCategory || activeCategory || 'Kinesiología',
+      serviceCategory: profTrackingModal.serviceCategory || activeCategory || 'kinesiologia',
       formType: 'exercise_log' as ClinicalFormType,
       attentionDate: new Date(),
       content: {
@@ -287,7 +288,7 @@ export default function PatientHistoryPage() {
     clinicalFormConfigs.filter(c => c.isActive).forEach(config => {
       // Find which category this config belongs to (if any)
       const typeInfo = FORM_TYPES_INFO.find(t => t.value === config.formType);
-      const categoryId = typeInfo?.category || "Evolución"; // Default to Evolución if unknown
+      const categoryId = typeInfo?.category || "evolucion"; // Default to Evolución if unknown
 
       const catIdx = baseCategories.findIndex(c => c.id === categoryId);
       if (catIdx !== -1) {
@@ -373,7 +374,7 @@ export default function PatientHistoryPage() {
         </div>
 
         <div className="flex items-center gap-2">
-          {activeCategory !== "Datos Personales" && (
+          {activeCategory !== "paciente" && (
             <Button onClick={() => setIsNewEntryOpen(true)} className="gap-2 shadow-sm bg-primary hover:bg-primary/90 text-white">
               <Plus className="h-4 w-4" />
               Nueva Ficha
@@ -419,7 +420,7 @@ export default function PatientHistoryPage() {
         {/* HISTORY CONTENT */}
         <ScrollArea className="flex-1 bg-slate-50/50 w-full">
           <div className="p-6 pb-20 space-y-8 w-full max-w-[calc(100vw-17rem)]">
-            {activeCategory === "Datos Personales" ? (
+            {activeCategory === "paciente" ? (
               <PersonalDataView client={client} record={record} config={getEffectiveConfig('personal')} />
             ) : (
               activeCategoryConfig?.types.map(type => {
@@ -1605,6 +1606,8 @@ function RenderFieldInput({ field, value, onChange, serviceType }: { field: any,
       return <DayRoutineEditor value={value} onChange={onChange} serviceType={serviceType} />
     case "exercise_list":
       return <ExerciseListEditor value={value || []} onChange={onChange} serviceType={serviceType} />
+    case "meal_plan":
+      return <MealPlanEditor value={value || []} onChange={onChange} />
     case "textarea":
       return <Textarea value={value || ""} onChange={e => onChange(e.target.value)} placeholder="Escriba aquí..." className="min-h-[60px] py-1.5 resize-none text-sm" />
     case "number":
@@ -1855,6 +1858,90 @@ function FichaDisplay({ item, config, typeInfo, allEntries, onEdit, onDeleteLog,
                                   )}
                                 </div>
                               )}
+                            </div>
+                          ))}
+                        </div>
+                      )
+                    }
+                    // Handle meal_plan type (Robust check for legacy configs or stringified JSON)
+                    let mealData = val
+                    let isMealPlan = field.type === 'meal_plan'
+
+                    // Force meal_plan handling if field KEY/LABEL matches known recipe fields
+                    if (!isMealPlan && (
+                      field.key === 'meal_plan' ||
+                      field.key === 'plan_alimentario' ||
+                      field.label === 'Plan Alimentario'
+                    )) {
+                      isMealPlan = true
+                    }
+
+                    // Case 1: Value is a string (needs parsing)
+                    if (typeof val === 'string') {
+                      if (val.trim().startsWith('[') && val.trim().endsWith(']')) {
+                        try {
+                          const parsed = JSON.parse(val)
+                          if (Array.isArray(parsed) && parsed.length > 0 && (parsed[0].name || parsed[0].options)) {
+                            mealData = parsed
+                            isMealPlan = true
+                          }
+                        } catch (e) { }
+                      }
+                    }
+                    // Case 2: Value is ALREADY an array (but field type might be wrong)
+                    else if (Array.isArray(val) && val.length > 0 && (val[0].name || val[0].options)) {
+                      isMealPlan = true
+                      mealData = val
+                    }
+
+                    if (isMealPlan && Array.isArray(mealData)) {
+                      return (
+                        <div key={field.id} className="space-y-3">
+                          {mealData.map((meal: any, mIdx: number) => (
+                            <div key={mIdx} className="bg-white rounded-lg border border-slate-200 overflow-hidden">
+                              <div className="px-3 py-2 bg-orange-50 border-b border-orange-100 flex items-center justify-between">
+                                <span className="text-xs font-bold text-orange-700 uppercase tracking-wider flex items-center gap-1.5">
+                                  <Utensils className="h-3.5 w-3.5" /> {meal.name}
+                                </span>
+                                {meal.time && <span className="text-[10px] bg-white px-1.5 py-0.5 rounded text-slate-500 font-medium">{meal.time}</span>}
+                              </div>
+                              <div className="p-3 space-y-3">
+                                {meal.notes && <p className="text-xs text-slate-500 italic mb-2">"{meal.notes}"</p>}
+                                {meal.options?.map((opt: any, oIdx: number) => (
+                                  <div key={oIdx} className="text-xs space-y-2 pl-2 border-l-2 border-slate-100 pb-2">
+                                    <p className="font-semibold text-slate-700">Opción {oIdx + 1}: <span className="font-normal">{opt.name}</span></p>
+
+                                    {opt.description && !opt.ingredients && !opt.preparation && <p className="text-slate-500">{opt.description}</p>}
+
+                                    {opt.ingredients && (
+                                      <div className="bg-slate-50 p-2 rounded border border-slate-100">
+                                        <span className="font-bold text-[10px] text-slate-400 uppercase block mb-1">Ingredientes</span>
+                                        <p className="text-slate-600 whitespace-pre-wrap leading-relaxed">{opt.ingredients}</p>
+                                      </div>
+                                    )}
+
+                                    {opt.preparation && (
+                                      <div className="bg-slate-50 p-2 rounded border border-slate-100">
+                                        <span className="font-bold text-[10px] text-slate-400 uppercase block mb-1">Preparación</span>
+                                        <p className="text-slate-600 whitespace-pre-wrap leading-relaxed">{opt.preparation}</p>
+                                      </div>
+                                    )}
+
+                                    <div className="flex gap-3 mt-1 pl-1">
+                                      {opt.videoUrl && (
+                                        <a href={opt.videoUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-[10px] tx-blue-600 hover:text-blue-700 hover:underline" onClick={e => e.stopPropagation()}>
+                                          <Video className="h-3 w-3" /> Ver Video
+                                        </a>
+                                      )}
+                                      {opt.pdfUrl && (
+                                        <a href={opt.pdfUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-[10px] text-red-600 hover:text-red-700 hover:underline" onClick={e => e.stopPropagation()}>
+                                          <FileText className="h-3 w-3" /> Ver Receta (PDF)
+                                        </a>
+                                      )}
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
                             </div>
                           ))}
                         </div>
@@ -2228,6 +2315,110 @@ function FichaDisplay({ item, config, typeInfo, allEntries, onEdit, onDeleteLog,
                                 {ex.observation && (
                                   <div className="text-xs text-slate-500 italic bg-slate-50 p-2 rounded-md border border-slate-100 whitespace-pre-wrap">🗨️ {ex.observation}</div>
                                 )}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )
+                    }
+
+                    // Handle meal_plan type (Robust check for legacy configs or stringified JSON)
+                    let mealData = val
+                    let isMealPlan = field.type === 'meal_plan'
+
+                    // Force meal_plan handling if field KEY/LABEL matches known recipe fields
+                    if (!isMealPlan && (
+                      field.key === 'meal_plan' ||
+                      field.key === 'plan_alimentario' ||
+                      field.label === 'Plan Alimentario'
+                    )) {
+                      isMealPlan = true
+                    }
+
+                    // Case 1: Value is a string (needs parsing)
+                    if (typeof val === 'string') {
+                      if (val.trim().startsWith('[') && val.trim().endsWith(']')) {
+                        try {
+                          const parsed = JSON.parse(val)
+                          // If already identified as meal plan by key, accept any array
+                          if (Array.isArray(parsed) && parsed.length > 0) {
+                            if (isMealPlan || (parsed[0].name || parsed[0].options)) {
+                              mealData = parsed
+                              isMealPlan = true
+                            }
+                          }
+                        } catch (e) { }
+                      }
+                    }
+                    // Case 2: Value is ALREADY an array (but field type might be wrong)
+                    else if (Array.isArray(val) && val.length > 0) {
+                      if (isMealPlan || (val[0].name || val[0].options)) {
+                        isMealPlan = true
+                        mealData = val
+                      }
+                    }
+
+                    if (isMealPlan && Array.isArray(mealData)) {
+                      return (
+                        <div key={field.id} className="md:col-span-2 space-y-3">
+                          {mealData.map((meal: any, mIdx: number) => (
+                            <div key={mIdx} className="bg-white rounded-lg border border-slate-200 overflow-hidden">
+                              <div className="px-3 py-2 bg-orange-50 border-b border-orange-100 flex items-center justify-between">
+                                <span className="text-xs font-bold text-orange-700 uppercase tracking-wider flex items-center gap-1.5">
+                                  <Utensils className="h-3.5 w-3.5" /> {meal.name}
+                                </span>
+                                {meal.time && <span className="text-[10px] bg-white px-1.5 py-0.5 rounded text-slate-500 font-medium">{meal.time}</span>}
+                              </div>
+                              <div className="p-3 space-y-3">
+                                {meal.notes && <p className="text-xs text-slate-500 italic mb-2">"{meal.notes}"</p>}
+                                {meal.options?.map((opt: any, oIdx: number) => (
+                                  <div key={oIdx} className="text-xs space-y-2 pl-2 border-l-2 border-slate-100 pb-2">
+                                    <p className="font-semibold text-slate-700">Opción {oIdx + 1}: <span className="font-normal">{opt.name}</span></p>
+
+                                    {opt.description && !opt.ingredients && !opt.preparation && <p className="text-slate-500">{opt.description}</p>}
+
+                                    {opt.ingredients && (
+                                      <div className="bg-slate-50 p-2 rounded border border-slate-100">
+                                        <span className="font-bold text-[10px] text-slate-400 uppercase block mb-1">Ingredientes</span>
+                                        <p className="text-slate-600 whitespace-pre-wrap leading-relaxed">{opt.ingredients}</p>
+                                      </div>
+                                    )}
+
+                                    {opt.preparation && (
+                                      <div className="bg-slate-50 p-2 rounded border border-slate-100">
+                                        <span className="font-bold text-[10px] text-slate-400 uppercase block mb-1">Preparación</span>
+                                        <p className="text-slate-600 whitespace-pre-wrap leading-relaxed">{opt.preparation}</p>
+                                      </div>
+                                    )}
+
+                                    <div className="flex gap-3 mt-1 pl-1">
+                                      {opt.videoUrl && (
+                                        <div
+                                          className="flex items-center gap-1 text-[10px] text-blue-600 hover:text-blue-700 hover:underline cursor-pointer z-50 select-none"
+                                          onClick={(e) => {
+                                            e.preventDefault();
+                                            e.stopPropagation();
+                                            window.open(opt.videoUrl, '_blank', 'noopener,noreferrer');
+                                          }}
+                                        >
+                                          <Video className="h-3 w-3" /> Ver Video
+                                        </div>
+                                      )}
+                                      {opt.pdfUrl && (
+                                        <div
+                                          className="flex items-center gap-1 text-[10px] text-red-600 hover:text-red-700 hover:underline cursor-pointer z-50 select-none"
+                                          onClick={(e) => {
+                                            e.preventDefault();
+                                            e.stopPropagation();
+                                            window.open(opt.pdfUrl, '_blank', 'noopener,noreferrer');
+                                          }}
+                                        >
+                                          <FileText className="h-3 w-3" /> Ver Receta (PDF)
+                                        </div>
+                                      )}
+                                    </div>
+                                  </div>
+                                ))}
                               </div>
                             </div>
                           ))}

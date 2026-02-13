@@ -2,29 +2,45 @@ import { ClinicalFormType, ClinicalFormConfig } from "./types"
 import { Activity, Dumbbell, Apple, Sparkles, Heart, FileText } from "lucide-react"
 
 export const SERVICE_CATEGORIES = [
-    { id: "Kinesiología", label: "Kinesiología", icon: Activity, color: "text-blue-600 bg-blue-50", types: ["kinesiology_evaluation", "kinesiology_treatment", "kine_home", "exercise_log"] },
-    { id: "Entrenamiento", label: "Entrenamiento", icon: Dumbbell, color: "text-orange-600 bg-orange-50", types: ["training_evaluation", "training_routine", "exercise_log"] },
-    { id: "Nutrición", label: "Nutrición", icon: Apple, color: "text-green-600 bg-green-50", types: ["nutrition_anthropometry", "nutrition_recipe"] },
-    { id: "Masajes", label: "Masajes", icon: Sparkles, color: "text-purple-600 bg-purple-50", types: ["massage_evaluation"] },
-    { id: "Yoga", label: "Yoga", icon: Heart, color: "text-pink-600 bg-pink-50", types: ["yoga_evaluation", "yoga_routine"] },
-    { id: "Evolución", label: "Notas de Evolución", icon: FileText, color: "text-slate-600 bg-slate-50", types: ["evolution_note"] },
-    { id: "Datos Personales", label: "Datos Personales", icon: FileText, color: "text-slate-700 bg-slate-100", types: ["personal"] },
+    { id: "kinesiologia", label: "Kinesiología", icon: Activity, color: "text-blue-500", bgColor: "bg-blue-500", types: ["kinesiology_evaluation", "kinesiology_treatment", "kine_home", "exercise_log"] },
+    { id: "entrenamiento", label: "Entrenamiento", icon: Dumbbell, color: "text-orange-500", bgColor: "bg-orange-500", types: ["training_evaluation", "training_routine", "exercise_log"] },
+    { id: "nutricion", label: "Nutrición", icon: Apple, color: "text-green-500", bgColor: "bg-green-500", types: ["nutrition_evaluation", "nutrition_anthropometry", "nutrition_recipe"] },
+    { id: "masajes", label: "Masajes", icon: Sparkles, color: "text-purple-500", bgColor: "bg-purple-500", types: ["massage_evaluation"] },
+    { id: "yoga", label: "Yoga", icon: Heart, color: "text-pink-500", bgColor: "bg-pink-500", types: ["yoga_evaluation", "yoga_routine"] },
+    { id: "evolucion", label: "Evolución", icon: FileText, color: "text-gray-500", bgColor: "bg-gray-500", types: ["evolution_note"] },
+    { id: "paciente", label: "Ficha del Paciente", icon: FileText, color: "text-slate-500", bgColor: "bg-slate-500", types: ["personal"] },
 ]
 
 export const FORM_TYPES_INFO: { value: ClinicalFormType; label: string; icon: any; color: string; category: string }[] = [
-    { value: "kinesiology_evaluation", label: "Evaluación Kinésica", icon: Activity, color: "bg-blue-600", category: "Kinesiología" },
-    { value: "kinesiology_treatment", label: "Tratamiento Kinésico", icon: Activity, color: "bg-blue-500", category: "Kinesiología" },
-    { value: "kine_home", label: "Kine en Casa", icon: Activity, color: "bg-blue-400", category: "Kinesiología" },
-    { value: "exercise_log", label: "Registro de Avance", icon: Activity, color: "bg-blue-300", category: "Kinesiología" },
-    { value: "training_evaluation", label: "Evaluación Entrenamiento", icon: Dumbbell, color: "bg-orange-600", category: "Entrenamiento" },
-    { value: "training_routine", label: "Rutina Entrenamiento", icon: Dumbbell, color: "bg-orange-500", category: "Entrenamiento" },
-    { value: "nutrition_anthropometry", label: "Antropometría", icon: Apple, color: "bg-green-600", category: "Nutrición" },
-    { value: "nutrition_recipe", label: "Recetas", icon: Apple, color: "bg-green-500", category: "Nutrición" },
-    { value: "massage_evaluation", label: "Evaluación Masajes", icon: Sparkles, color: "bg-purple-600", category: "Masajes" },
-    { value: "yoga_evaluation", label: "Evaluación Yoga", icon: Heart, color: "bg-pink-600", category: "Yoga" },
-    { value: "yoga_routine", label: "Rutina Yoga", icon: Heart, color: "bg-pink-500", category: "Yoga" },
-    { value: "evolution_note", label: "Notas de Evolución", icon: FileText, color: "bg-slate-600", category: "Evolución" },
-    { value: "personal", label: "Datos Personales", icon: FileText, color: "bg-slate-700", category: "Datos Personales" },
+    { value: "kinesiology_evaluation", label: "Evaluación Kinésica", icon: Activity, color: "bg-blue-500", category: "kinesiologia" },
+    { value: "kinesiology_treatment", label: "Tratamiento Kinésico", icon: Activity, color: "bg-blue-400", category: "kinesiologia" },
+    { value: "kine_home", label: "Kine en Casa", icon: Activity, color: "bg-blue-300", category: "kinesiologia" },
+    { value: "exercise_log", label: "Registro de Avance", icon: Activity, color: "bg-blue-300", category: "kinesiologia" },
+    { value: "training_evaluation", label: "Evaluación Entrenamiento", icon: Dumbbell, color: "bg-orange-500", category: "entrenamiento" },
+    { value: "training_routine", label: "Rutina Entrenamiento", icon: Dumbbell, color: "bg-orange-400", category: "entrenamiento" },
+    { value: "nutrition_evaluation", label: "Evaluación Nutricional", icon: Apple, color: "bg-green-700", category: "nutricion" },
+    { value: "nutrition_anthropometry", label: "Antropometría", icon: Apple, color: "bg-green-600", category: "nutricion" },
+    { value: "nutrition_recipe", label: "Recetas", icon: Apple, color: "bg-green-400", category: "nutricion" },
+    { value: "massage_evaluation", label: "Evaluación Masajes", icon: Sparkles, color: "bg-purple-500", category: "masajes" },
+    { value: "yoga_evaluation", label: "Evaluación Yoga", icon: Heart, color: "bg-pink-500", category: "yoga" },
+    { value: "yoga_routine", label: "Rutina Yoga", icon: Heart, color: "bg-pink-400", category: "yoga" },
+    { value: "evolution_note", label: "Notas de Evolución", icon: FileText, color: "bg-gray-500", category: "evolucion" },
+    { value: "personal", label: "Datos Personales", icon: FileText, color: "bg-slate-500", category: "paciente" },
+]
+
+export const FIELD_TYPES: { value: import("./types").FormFieldType; label: string }[] = [
+    { value: "text", label: "Texto corto" },
+    { value: "textarea", label: "Texto largo" },
+    { value: "number", label: "Número" },
+    { value: "select", label: "Lista desplegable" },
+    { value: "multiselect", label: "Selección múltiple" },
+    { value: "checkbox", label: "Casilla de verificación" },
+    { value: "radio", label: "Opción única" },
+    { value: "date", label: "Fecha" },
+    { value: "time", label: "Hora" },
+    { value: "scale", label: "Escala (1-10)" },
+    { value: "toggle", label: "Sí/No" },
+    { value: "section", label: "Separador de sección" },
 ]
 
 // ... code ...
@@ -213,42 +229,84 @@ export const getDefaultFormConfig = (formType: ClinicalFormType): Partial<Clinic
                     { id: "99", key: "isVisible", label: "Visible para el Paciente", type: "toggle", section: "routine", order: 99, isActive: true, visibleToPatient: false },
                 ]
             }
+        case "nutrition_evaluation":
+            return {
+                name: "Evaluación Nutricional",
+                description: "Evaluación inicial y seguimiento nutricional",
+                sections: [
+                    { id: "anamnesis", key: "anamnesis", title: "Anamnesis", order: 0, isActive: true },
+                    { id: "habits", key: "habits", title: "Hábitos", order: 1, isActive: true },
+                    { id: "objectives", key: "objectives", title: "Objetivos", order: 2, isActive: true },
+                ],
+                fields: [
+                    { id: "1", key: "reason", label: "Motivo de Consulta", type: "textarea", section: "anamnesis", order: 0, isActive: true, visibleToPatient: true },
+                    { id: "2", key: "history", label: "Antecedentes Patológicos", type: "textarea", section: "anamnesis", order: 1, isActive: true, visibleToPatient: true },
+                    { id: "3", key: "medication", label: "Medicación", type: "textarea", section: "anamnesis", order: 2, isActive: true, visibleToPatient: true },
+                    { id: "4", key: "allergies", label: "Alergias / Intolerancias", type: "textarea", section: "anamnesis", order: 3, isActive: true, visibleToPatient: true },
+                    { id: "5", key: "digestive", label: "Ritmo Evacuatorio / Digestión", type: "textarea", section: "anamnesis", order: 4, isActive: true, visibleToPatient: true },
+                    { id: "6", key: "activity", label: "Actividad Física", type: "textarea", section: "habits", order: 0, isActive: true, visibleToPatient: true },
+                    { id: "7", key: "schedule", label: "Horarios y Rutinas", type: "textarea", section: "habits", order: 1, isActive: true, visibleToPatient: true },
+                    { id: "8", key: "preferences", label: "Gustos y Preferencias", type: "textarea", section: "habits", order: 2, isActive: true, visibleToPatient: true },
+                    { id: "9", key: "shortTermGoals", label: "Objetivos Corto Plazo", type: "textarea", section: "objectives", order: 0, isActive: true, visibleToPatient: true },
+                    { id: "10", key: "longTermGoals", label: "Objetivos Largo Plazo", type: "textarea", section: "objectives", order: 1, isActive: true, visibleToPatient: true },
+                    { id: "99", key: "isVisible", label: "Visible para el Paciente", type: "toggle", section: "anamnesis", order: 99, isActive: true, visibleToPatient: false },
+                ]
+            }
         case "nutrition_anthropometry":
             return {
                 name: "Antropometría",
-                description: "Evaluación antropométrica y composición corporal",
+                description: "Mediciones y evaluación nutricional",
                 sections: [
-                    { id: "general", key: "general", title: "Datos Generales", order: 0, isActive: true },
-                    { id: "measures", key: "measures", title: "Mediciones", order: 1, isActive: true },
-                    { id: "results", key: "results", title: "Resultados", order: 2, isActive: true },
+                    { id: "consultation", key: "consultation", title: "Consulta", order: 0, isActive: true },
+                    { id: "measurements", key: "measurements", title: "Mediciones", order: 1, isActive: true },
+                    { id: "plan", key: "plan", title: "Plan", order: 2, isActive: true },
                 ],
                 fields: [
-                    { id: "1", key: "weight", label: "Peso Actual (kg)", type: "number", section: "general", order: 0, isActive: true, visibleToPatient: true },
-                    { id: "2", key: "height", label: "Altura (cm)", type: "number", section: "general", order: 1, isActive: true, visibleToPatient: true },
-                    { id: "3", key: "waist", label: "Cintura (cm)", type: "number", section: "measures", order: 0, isActive: true, visibleToPatient: true },
-                    { id: "4", key: "hip", label: "Cadera (cm)", type: "number", section: "measures", order: 1, isActive: true, visibleToPatient: true },
-                    { id: "5", key: "arms", label: "Brazos (cm)", type: "number", section: "measures", order: 2, isActive: true, visibleToPatient: true },
-                    { id: "6", key: "thighs", label: "Muslos (cm)", type: "number", section: "measures", order: 3, isActive: true, visibleToPatient: true },
-                    { id: "7", key: "fatPercentage", label: "% Grasa", type: "number", section: "results", order: 0, isActive: true, visibleToPatient: true },
-                    { id: "8", key: "musclePercentage", label: "% Músculo", type: "number", section: "results", order: 1, isActive: true, visibleToPatient: true },
-                    { id: "9", key: "visceralFat", label: "Grasa Visceral", type: "number", section: "results", order: 2, isActive: true, visibleToPatient: true },
-                    { id: "10", key: "metabolicAge", label: "Edad Metabólica", type: "number", section: "results", order: 3, isActive: true, visibleToPatient: true },
-                    { id: "11", key: "observations", label: "Observaciones", type: "textarea", section: "results", order: 4, isActive: true, visibleToPatient: true },
-                    { id: "99", key: "isVisible", label: "Visible para el Paciente", type: "toggle", section: "general", order: 99, isActive: true, visibleToPatient: false },
+                    { id: "1", key: "sessionNumber", label: "Número de Sesión", type: "number", section: "consultation", order: 0, isActive: true, visibleToPatient: true },
+                    { id: "2", key: "consultReason", label: "Motivo de Consulta", type: "textarea", section: "consultation", order: 1, isActive: true, visibleToPatient: true },
+                    { id: "3", key: "lastLabWork", label: "Último Laboratorio", type: "textarea", section: "consultation", order: 2, isActive: true, visibleToPatient: true },
+                    { id: "4", key: "previousNutritionTreatments", label: "Tratamientos Anteriores", type: "textarea", section: "consultation", order: 3, isActive: true, visibleToPatient: true },
+                    { id: "5", key: "representativeFoodDay", label: "Día Alimentario Representativo", type: "textarea", section: "consultation", order: 4, isActive: true, visibleToPatient: true },
+                    { id: "6", key: "weight", label: "Peso (kg)", type: "number", section: "measurements", order: 0, isActive: true, visibleToPatient: true },
+                    { id: "7", key: "height", label: "Altura (cm)", type: "number", section: "measurements", order: 1, isActive: true, visibleToPatient: true },
+                    { id: "8", key: "bmi", label: "IMC", type: "number", section: "measurements", order: 2, isActive: true, visibleToPatient: true },
+                    { id: "9", key: "bodyFatPercentage", label: "% Grasa Corporal", type: "number", section: "measurements", order: 3, isActive: true, visibleToPatient: true },
+                    { id: "10", key: "muscleMass", label: "Masa Muscular", type: "number", section: "measurements", order: 4, isActive: true, visibleToPatient: true },
+                    { id: "11", key: "interpretation", label: "Interpretación", type: "textarea", section: "plan", order: 0, isActive: true, visibleToPatient: true },
+                    { id: "12", key: "nutritionalObjective", label: "Objetivo Nutricional", type: "textarea", section: "plan", order: 1, isActive: true, visibleToPatient: true },
+                    { id: "13", key: "nextSessionGoals", label: "Objetivos Próxima Consulta", type: "textarea", section: "plan", order: 2, isActive: true, visibleToPatient: true },
                 ]
             }
         case "nutrition_recipe":
             return {
-                name: "Receta / Plan Alimentario",
-                description: "Plan nutricional personalizado",
-                sections: [{ id: "plan", key: "plan", title: "Plan", order: 0, isActive: true }],
+                name: "Recetas / Plan Alimentario",
+                description: "Planificación de comidas con opciones y archivos media",
+                sections: [
+                    { id: "general", key: "general", title: "Planificación", order: 0, isActive: true },
+                ],
                 fields: [
-                    { id: "1", key: "type", label: "Tipo de Plan", type: "select", section: "plan", order: 0, isActive: true, options: [{ value: "descenso", label: "Descenso de Peso" }, { value: "aumento", label: "Aumento Masa Muscular" }, { value: "mantenimiento", label: "Mantenimiento" }], visibleToPatient: true },
-                    { id: "2", key: "calories", label: "Calorías Diarias", type: "number", section: "plan", order: 1, isActive: true, visibleToPatient: true },
-                    { id: "3", key: "macros", label: "Distribución de Macros", type: "textarea", section: "plan", order: 2, isActive: true, visibleToPatient: true },
-                    { id: "4", key: "indications", label: "Indicaciones Generales", type: "textarea", section: "plan", order: 3, isActive: true, visibleToPatient: true },
-                    { id: "5", key: "key", label: "Menú Semanal", type: "textarea", section: "plan", order: 4, isActive: true, visibleToPatient: true },
-                    { id: "99", key: "isVisible", label: "Visible para el Paciente", type: "toggle", section: "plan", order: 99, isActive: true, visibleToPatient: false },
+                    {
+                        id: "meal_plan",
+                        key: "plan_alimentario",
+                        label: "Plan Alimentario",
+                        type: "meal_plan",
+                        section: "general",
+                        order: 0,
+                        isActive: true,
+                        visibleToPatient: true,
+                        helpText: "Cargá las comidas con sus opciones. Cada opción puede tener video y PDF."
+                    },
+                    {
+                        id: "notes",
+                        key: "notas_generales",
+                        label: "Notas Generales",
+                        type: "textarea",
+                        section: "general",
+                        order: 1,
+                        isActive: true,
+                        visibleToPatient: true,
+                        placeholder: "Indicaciones generales para esta semana..."
+                    }
                 ]
             }
         case "massage_evaluation":

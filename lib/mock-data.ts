@@ -106,7 +106,7 @@ export const serviceConfigs: ServiceConfig[] = [
   },
   {
     id: "service-3",
-    name: "Antropometría",
+    name: "Evaluación Nutricional",
     description: "Evaluación antropométrica completa",
     basePrice: 15000,
     standardDuration: 90,

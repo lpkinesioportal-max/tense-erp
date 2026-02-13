@@ -1,4 +1,4 @@
-"use client"
+﻿"use client"
 
 import { useState, useEffect, useMemo } from "react"
 import { AppLayout } from "@/components/layout/app-layout"
@@ -22,6 +22,16 @@ import {
 } from "@/components/ui/dialog"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Separator } from "@/components/ui/separator"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 import {
   Plus,
   Edit2,
@@ -50,1451 +60,24 @@ import type {
   ClinicalFormType,
 } from "@/lib/types"
 
-const FORM_CATEGORIES = [
-  { id: "kinesiologia", label: "Kinesiología", icon: Activity, color: "text-blue-500", bgColor: "bg-blue-500" },
-  { id: "entrenamiento", label: "Entrenamiento", icon: Dumbbell, color: "text-orange-500", bgColor: "bg-orange-500" },
-  { id: "nutricion", label: "Nutrición", icon: Apple, color: "text-green-500", bgColor: "bg-green-500" },
-  { id: "masajes", label: "Masajes", icon: Sparkles, color: "text-purple-500", bgColor: "bg-purple-500" },
-  { id: "yoga", label: "Yoga", icon: Heart, color: "text-pink-500", bgColor: "bg-pink-500" },
-  { id: "evolucion", label: "Evolución", icon: FileText, color: "text-gray-500", bgColor: "bg-gray-500" },
-  { id: "paciente", label: "Ficha del Paciente", icon: FileText, color: "text-slate-500", bgColor: "bg-slate-500" },
-]
-
-const FORM_TYPES: { value: ClinicalFormType; label: string; icon: any; color: string; category: string }[] = [
-  { value: "kinesiology_evaluation", label: "Evaluación Kinésica", icon: Activity, color: "bg-blue-500", category: "kinesiologia" },
-  { value: "kinesiology_treatment", label: "Tratamiento Kinésico", icon: Activity, color: "bg-blue-400", category: "kinesiologia" },
-  { value: "kine_home", label: "Kine en Casa", icon: Activity, color: "bg-blue-300", category: "kinesiologia" },
-  { value: "exercise_log", label: "Registro de Avance", icon: Activity, color: "bg-blue-300", category: "kinesiologia" },
-
-  { value: "training_evaluation", label: "Evaluación Entrenamiento", icon: Dumbbell, color: "bg-orange-500", category: "entrenamiento" },
-  { value: "training_routine", label: "Rutina Entrenamiento", icon: Dumbbell, color: "bg-orange-400", category: "entrenamiento" },
-  { value: "nutrition_anthropometry", label: "Antropometría", icon: Apple, color: "bg-green-500", category: "nutricion" },
-  { value: "nutrition_recipe", label: "Recetas", icon: Apple, color: "bg-green-400", category: "nutricion" },
-  { value: "massage_evaluation", label: "Evaluación Masajes", icon: Sparkles, color: "bg-purple-500", category: "masajes" },
-  { value: "yoga_evaluation", label: "Evaluación Yoga", icon: Heart, color: "bg-pink-500", category: "yoga" },
-  { value: "yoga_routine", label: "Rutina Yoga", icon: Heart, color: "bg-pink-400", category: "yoga" },
-  { value: "evolution_note", label: "Notas de Evolución", icon: FileText, color: "bg-gray-500", category: "evolucion" },
-  { value: "personal", label: "Datos Personales", icon: FileText, color: "bg-slate-500", category: "paciente" },
-]
-
-const FIELD_TYPES: { value: FormFieldType; label: string }[] = [
-  { value: "text", label: "Texto corto" },
-  { value: "textarea", label: "Texto largo" },
-  { value: "number", label: "Número" },
-  { value: "select", label: "Lista desplegable" },
-  { value: "multiselect", label: "Selección múltiple" },
-  { value: "checkbox", label: "Casilla de verificación" },
-  { value: "radio", label: "Opción única" },
-  { value: "date", label: "Fecha" },
-  { value: "time", label: "Hora" },
-  { value: "scale", label: "Escala (1-10)" },
-  { value: "toggle", label: "Sí/No" },
-  { value: "section", label: "Separador de sección" },
-]
+import {
+  SERVICE_CATEGORIES as FORM_CATEGORIES,
+  FORM_TYPES_INFO as FORM_TYPES,
+  getDefaultFormConfig,
+  FIELD_TYPES
+} from "@/lib/clinical-forms-defaults"
 
 // Default form configurations
-const getDefaultFormConfig = (formType: ClinicalFormType): Partial<ClinicalFormConfig> => {
-  const configs: Record<ClinicalFormType, Partial<ClinicalFormConfig>> = {
-    personal: {
-      name: "Datos Personales del Paciente",
-      description: "Información personal, antecedentes y consentimiento",
-      sections: [
-        { id: "admin", key: "admin", title: "Administrativo", order: 0, isActive: true },
-        { id: "personal", key: "personal", title: "Datos Personales", order: 1, isActive: true },
-        { id: "medical", key: "medical", title: "Antecedentes Médicos", order: 2, isActive: true },
-        { id: "habits", key: "habits", title: "Hábitos", order: 3, isActive: true },
-        { id: "emergency", key: "emergency", title: "Contacto de Emergencia", order: 4, isActive: true },
-      ],
-      fields: [
-        {
-          id: "1",
-          key: "registrationDate",
-          label: "Fecha de Registro",
-          type: "date",
-          section: "admin",
-          order: 0,
-          isActive: true,
-          visibleToPatient: true,
-        },
-        {
-          id: "2",
-          key: "assignedProfessionalId",
-          label: "Profesional Asignado",
-          type: "select",
-          section: "admin",
-          order: 1,
-          isActive: true,
-          visibleToPatient: true,
-        },
-        {
-          id: "3",
-          key: "birthDate",
-          label: "Fecha de Nacimiento",
-          type: "date",
-          section: "personal",
-          order: 0,
-          isActive: true,
-          visibleToPatient: true,
-        },
-        {
-          id: "4",
-          key: "address",
-          label: "Domicilio",
-          type: "text",
-          section: "personal",
-          order: 1,
-          isActive: true,
-          visibleToPatient: true,
-        },
-        {
-          id: "5",
-          key: "nationality",
-          label: "Nacionalidad",
-          type: "text",
-          section: "personal",
-          order: 2,
-          isActive: true,
-          visibleToPatient: true,
-        },
-        {
-          id: "6",
-          key: "dni",
-          label: "DNI",
-          type: "text",
-          section: "personal",
-          order: 3,
-          isActive: true,
-          visibleToPatient: true,
-        },
-        {
-          id: "7",
-          key: "height",
-          label: "Altura (cm)",
-          type: "number",
-          section: "personal",
-          order: 4,
-          isActive: true,
-          visibleToPatient: true,
-        },
-        {
-          id: "8",
-          key: "weight",
-          label: "Peso (kg)",
-          type: "number",
-          section: "personal",
-          order: 5,
-          isActive: true,
-          visibleToPatient: true,
-        },
-        {
-          id: "9",
-          key: "bloodType",
-          label: "Grupo Sanguíneo",
-          type: "select",
-          section: "personal",
-          order: 6,
-          isActive: true,
-          visibleToPatient: true,
-          options: [
-            { value: "A+", label: "A+" },
-            { value: "A-", label: "A-" },
-            { value: "B+", label: "B+" },
-            { value: "B-", label: "B-" },
-            { value: "AB+", label: "AB+" },
-            { value: "AB-", label: "AB-" },
-            { value: "O+", label: "O+" },
-            { value: "O-", label: "O-" },
-          ],
-        },
-        {
-          id: "10",
-          key: "injuryHistory",
-          label: "Antecedentes de Lesión",
-          type: "textarea",
-          section: "medical",
-          order: 0,
-          isActive: true,
-          visibleToPatient: true,
-        },
-        {
-          id: "11",
-          key: "diseases",
-          label: "Enfermedades",
-          type: "textarea",
-          section: "medical",
-          order: 1,
-          isActive: true,
-          visibleToPatient: true,
-        },
-        {
-          id: "12",
-          key: "surgeries",
-          label: "Cirugías",
-          type: "textarea",
-          section: "medical",
-          order: 2,
-          isActive: true,
-          visibleToPatient: true,
-        },
-        {
-          id: "13",
-          key: "medication",
-          label: "Medicación / Suplementación",
-          type: "textarea",
-          section: "medical",
-          order: 3,
-          isActive: true,
-          visibleToPatient: true,
-        },
-        {
-          id: "14",
-          key: "smoker",
-          label: "¿Fumás?",
-          type: "select",
-          section: "habits",
-          order: 0,
-          isActive: true,
-          visibleToPatient: true,
-          options: [
-            { value: "no", label: "No" },
-            { value: "yes", label: "Sí" },
-            { value: "former", label: "Ex fumador" },
-          ],
-        },
-        {
-          id: "15",
-          key: "physicalActivityFrequency",
-          label: "Actividad Física (estímulos/semana)",
-          type: "text",
-          section: "habits",
-          order: 1,
-          isActive: true,
-          visibleToPatient: true,
-        },
-        {
-          id: "16",
-          key: "occupation",
-          label: "Ocupación",
-          type: "text",
-          section: "habits",
-          order: 2,
-          isActive: true,
-          visibleToPatient: true,
-        },
-        {
-          id: "17",
-          key: "occupationErgonomic",
-          label: "¿Condiciones ergonómicas?",
-          type: "toggle",
-          section: "habits",
-          order: 3,
-          isActive: true,
-          visibleToPatient: true,
-        },
-        {
-          id: "18",
-          key: "emergencyContact",
-          label: "Nombre Contacto Emergencia",
-          type: "text",
-          section: "emergency",
-          order: 0,
-          isActive: true,
-          visibleToPatient: true,
-        },
-        {
-          id: "19",
-          key: "emergencyPhone",
-          label: "Teléfono Emergencia",
-          type: "text",
-          section: "emergency",
-          order: 1,
-          isActive: true,
-          visibleToPatient: true,
-        },
-      ],
-    },
-    kinesiology_evaluation: {
-      name: "Evaluación Kinésica",
-      description: "Primera evaluación del paciente en kinesiología",
-      sections: [
-        { id: "clinical", key: "clinical", title: "Datos Clínicos", order: 0, isActive: true },
-        { id: "digestive", key: "digestive", title: "Digestivo / Sistémico", order: 1, isActive: true },
-        { id: "gynecological", key: "gynecological", title: "Ginecológico", order: 2, isActive: true },
-        { id: "neurological", key: "neurological", title: "Sueño / Neurológico", order: 3, isActive: true },
-        { id: "diagnosis", key: "diagnosis", title: "Diagnóstico y Plan", order: 4, isActive: true },
-      ],
-      fields: [
-        {
-          id: "1",
-          key: "consultReason",
-          label: "Motivo de Consulta",
-          type: "textarea",
-          section: "clinical",
-          order: 0,
-          isActive: true,
-          visibleToPatient: true,
-          required: true,
-        },
-        {
-          id: "2",
-          key: "painType",
-          label: "Tipo de Dolor",
-          type: "text",
-          section: "clinical",
-          order: 1,
-          isActive: true,
-          visibleToPatient: true,
-        },
-        {
-          id: "3",
-          key: "evaScale",
-          label: "EVA (Escala de Dolor)",
-          type: "scale",
-          section: "clinical",
-          order: 2,
-          isActive: true,
-          visibleToPatient: true,
-          min: 0,
-          max: 10,
-        },
-        {
-          id: "4",
-          key: "painMoment",
-          label: "Momento en que Duele",
-          type: "text",
-          section: "clinical",
-          order: 3,
-          isActive: true,
-          visibleToPatient: true,
-        },
-        {
-          id: "5",
-          key: "painChronology",
-          label: "Cronología del Dolor",
-          type: "textarea",
-          section: "clinical",
-          order: 4,
-          isActive: true,
-          visibleToPatient: true,
-        },
-        {
-          id: "6",
-          key: "previousTreatments",
-          label: "Tratamientos Anteriores",
-          type: "textarea",
-          section: "clinical",
-          order: 5,
-          isActive: true,
-          visibleToPatient: true,
-        },
-        {
-          id: "7",
-          key: "abdominalInflammation",
-          label: "Inflamación Abdominal",
-          type: "toggle",
-          section: "digestive",
-          order: 0,
-          isActive: true,
-          visibleToPatient: true,
-        },
-        {
-          id: "8",
-          key: "heartburn",
-          label: "Acidez",
-          type: "toggle",
-          section: "digestive",
-          order: 1,
-          isActive: true,
-          visibleToPatient: true,
-        },
-        {
-          id: "9",
-          key: "regularEvacuation",
-          label: "Evacuación Regular",
-          type: "toggle",
-          section: "digestive",
-          order: 2,
-          isActive: true,
-          visibleToPatient: true,
-        },
-        {
-          id: "10",
-          key: "hemorrhoids",
-          label: "Hemorroides",
-          type: "toggle",
-          section: "digestive",
-          order: 3,
-          isActive: true,
-          visibleToPatient: true,
-        },
-        {
-          id: "11",
-          key: "variedDiet",
-          label: "Alimentación Variada",
-          type: "toggle",
-          section: "digestive",
-          order: 4,
-          isActive: true,
-          visibleToPatient: true,
-        },
-        {
-          id: "12",
-          key: "foodRejection",
-          label: "Rechazo a Algún Alimento",
-          type: "text",
-          section: "digestive",
-          order: 5,
-          isActive: true,
-          visibleToPatient: true,
-        },
-        {
-          id: "13",
-          key: "varicoseVeins",
-          label: "Várices",
-          type: "toggle",
-          section: "digestive",
-          order: 6,
-          isActive: true,
-          visibleToPatient: true,
-        },
-        {
-          id: "14",
-          key: "intenseMenstrualPain",
-          label: "Dolor Menstrual Intenso",
-          type: "toggle",
-          section: "gynecological",
-          order: 0,
-          isActive: true,
-          visibleToPatient: true,
-        },
-        {
-          id: "15",
-          key: "sleepQuality",
-          label: "Calidad de Sueño",
-          type: "textarea",
-          section: "neurological",
-          order: 0,
-          isActive: true,
-          visibleToPatient: true,
-        },
-        {
-          id: "16",
-          key: "headaches",
-          label: "Cefaleas / Migrañas",
-          type: "textarea",
-          section: "neurological",
-          order: 1,
-          isActive: true,
-          visibleToPatient: true,
-        },
-        {
-          id: "17",
-          key: "diagnosis",
-          label: "Diagnóstico",
-          type: "textarea",
-          section: "diagnosis",
-          order: 0,
-          isActive: true,
-          visibleToPatient: false,
-        },
-        {
-          id: "18",
-          key: "treatmentPlan",
-          label: "Plan de Tratamiento",
-          type: "textarea",
-          section: "diagnosis",
-          order: 1,
-          isActive: true,
-          visibleToPatient: true,
-        },
-      ],
-    },
-    kinesiology_treatment: {
-      name: "Sesión de Tratamiento Kinésico",
-      description: "Registro de cada sesión de kinesiología",
-      sections: [{ id: "session", key: "session", title: "Datos de Sesión", order: 0, isActive: true }],
-      fields: [
-        {
-          id: "1",
-          key: "sessionNumber",
-          label: "Número de Sesión",
-          type: "number",
-          section: "session",
-          order: 0,
-          isActive: true,
-          visibleToPatient: true,
-        },
-        {
-          id: "2",
-          key: "attended",
-          label: "¿Vino a la Sesión?",
-          type: "toggle",
-          section: "session",
-          order: 1,
-          isActive: true,
-          visibleToPatient: true,
-        },
-        {
-          id: "3",
-          key: "sessionWork",
-          label: "Trabajamos en la Sesión",
-          type: "textarea",
-          section: "session",
-          order: 2,
-          isActive: true,
-          visibleToPatient: true,
-        },
-        {
-          id: "4",
-          key: "indication",
-          label: "Indicaciones",
-          type: "textarea",
-          section: "session",
-          order: 3,
-          isActive: true,
-          visibleToPatient: true,
-        },
-        {
-          id: "5",
-          key: "nextSession",
-          label: "Próxima Sesión",
-          type: "text",
-          section: "session",
-          order: 4,
-          isActive: true,
-          visibleToPatient: true,
-        },
-        {
-          id: "6",
-          key: "exercises",
-          label: "Ejercicios",
-          type: "textarea",
-          section: "session",
-          order: 5,
-          isActive: true,
-          visibleToPatient: true,
-        },
-        {
-          id: "7",
-          key: "comments",
-          label: "Comentarios",
-          type: "textarea",
-          section: "session",
-          order: 6,
-          isActive: true,
-          visibleToPatient: false,
-        },
-      ],
-    },
-    kine_home: {
-      name: "Kine en Casa",
-      description: "Programa de ejercicios para realizar en casa",
-      sections: [
-        { id: "program", key: "program", title: "Programa", order: 0, isActive: true },
-        { id: "exercises", key: "exercises", title: "Ejercicios", order: 1, isActive: true },
-      ],
-      fields: [
-        {
-          id: "1",
-          key: "region",
-          label: "Región",
-          type: "text",
-          section: "program",
-          order: 0,
-          isActive: true,
-          visibleToPatient: true,
-        },
-        {
-          id: "2",
-          key: "objective",
-          label: "Objetivo",
-          type: "textarea",
-          section: "program",
-          order: 1,
-          isActive: true,
-          visibleToPatient: true,
-        },
-      ],
-    },
-    training_evaluation: {
-      name: "Evaluación de Entrenamiento",
-      description: "Evaluación inicial para entrenamiento",
-      sections: [
-        { id: "history", key: "history", title: "Historia", order: 0, isActive: true },
-        { id: "bioimpedance", key: "bioimpedance", title: "Bioimpedancia", order: 1, isActive: true },
-        { id: "perimeters", key: "perimeters", title: "Perímetros", order: 2, isActive: true },
-        { id: "functional", key: "functional", title: "Evaluación Funcional", order: 3, isActive: true },
-      ],
-      fields: [
-        {
-          id: "1",
-          key: "pastSports",
-          label: "Deportes Pasados",
-          type: "textarea",
-          section: "history",
-          order: 0,
-          isActive: true,
-          visibleToPatient: true,
-        },
-        {
-          id: "2",
-          key: "nutrition",
-          label: "Alimentación",
-          type: "textarea",
-          section: "history",
-          order: 1,
-          isActive: true,
-          visibleToPatient: true,
-        },
-        {
-          id: "3",
-          key: "pain",
-          label: "Dolor",
-          type: "textarea",
-          section: "history",
-          order: 2,
-          isActive: true,
-          visibleToPatient: true,
-        },
-        {
-          id: "4",
-          key: "personalGoals",
-          label: "Objetivos Personales",
-          type: "textarea",
-          section: "history",
-          order: 3,
-          isActive: true,
-          visibleToPatient: true,
-        },
-        {
-          id: "5",
-          key: "weeklyTrainingFrequency",
-          label: "Frecuencia Semanal de Entrenamiento",
-          type: "number",
-          section: "history",
-          order: 4,
-          isActive: true,
-          visibleToPatient: true,
-        },
-        {
-          id: "6",
-          key: "bmi",
-          label: "BMI",
-          type: "number",
-          section: "bioimpedance",
-          order: 0,
-          isActive: true,
-          visibleToPatient: true,
-        },
-        {
-          id: "7",
-          key: "fatPercentage",
-          label: "% Grasa",
-          type: "number",
-          section: "bioimpedance",
-          order: 1,
-          isActive: true,
-          visibleToPatient: true,
-        },
-        {
-          id: "8",
-          key: "musclePercentage",
-          label: "% Músculo",
-          type: "number",
-          section: "bioimpedance",
-          order: 2,
-          isActive: true,
-          visibleToPatient: true,
-        },
-        {
-          id: "9",
-          key: "basalKcal",
-          label: "Kcal Basales",
-          type: "number",
-          section: "bioimpedance",
-          order: 3,
-          isActive: true,
-          visibleToPatient: true,
-        },
-        {
-          id: "10",
-          key: "bodyAge",
-          label: "Edad Corporal",
-          type: "number",
-          section: "bioimpedance",
-          order: 4,
-          isActive: true,
-          visibleToPatient: true,
-        },
-        {
-          id: "11",
-          key: "clavicles",
-          label: "Clavículas (cm)",
-          type: "number",
-          section: "perimeters",
-          order: 0,
-          isActive: true,
-          visibleToPatient: true,
-        },
-        {
-          id: "12",
-          key: "mammaryLine",
-          label: "Línea Mamilar (cm)",
-          type: "number",
-          section: "perimeters",
-          order: 1,
-          isActive: true,
-          visibleToPatient: true,
-        },
-        {
-          id: "13",
-          key: "biceps90",
-          label: "Bíceps 90° (cm)",
-          type: "number",
-          section: "perimeters",
-          order: 2,
-          isActive: true,
-          visibleToPatient: true,
-        },
-        {
-          id: "14",
-          key: "navel",
-          label: "Ombligo (cm)",
-          type: "number",
-          section: "perimeters",
-          order: 3,
-          isActive: true,
-          visibleToPatient: true,
-        },
-        {
-          id: "15",
-          key: "gluteus",
-          label: "Glúteos (cm)",
-          type: "number",
-          section: "perimeters",
-          order: 4,
-          isActive: true,
-          visibleToPatient: true,
-        },
-        {
-          id: "16",
-          key: "thigh",
-          label: "Muslo (cm)",
-          type: "number",
-          section: "perimeters",
-          order: 5,
-          isActive: true,
-          visibleToPatient: true,
-        },
-        {
-          id: "17",
-          key: "calves",
-          label: "Gemelos (cm)",
-          type: "number",
-          section: "perimeters",
-          order: 6,
-          isActive: true,
-          visibleToPatient: true,
-        },
-        {
-          id: "18",
-          key: "staticEvaluation",
-          label: "Evaluación Estática (1-10)",
-          type: "scale",
-          section: "functional",
-          order: 0,
-          isActive: true,
-          visibleToPatient: true,
-          min: 1,
-          max: 10,
-        },
-        {
-          id: "19",
-          key: "flexibility",
-          label: "Flexibilidad",
-          type: "textarea",
-          section: "functional",
-          order: 1,
-          isActive: true,
-          visibleToPatient: true,
-        },
-        {
-          id: "20",
-          key: "squat",
-          label: "Sentadilla",
-          type: "textarea",
-          section: "functional",
-          order: 2,
-          isActive: true,
-          visibleToPatient: true,
-        },
-        {
-          id: "21",
-          key: "trainingPlan",
-          label: "Plan de Entrenamiento",
-          type: "textarea",
-          section: "functional",
-          order: 3,
-          isActive: true,
-          visibleToPatient: true,
-        },
-      ],
-    },
-    training_routine: {
-      name: "Rutina de Entrenamiento",
-      description: "Rutinas personalizadas para el paciente",
-      sections: [
-        { id: "routine", key: "routine", title: "Rutina", order: 0, isActive: true },
-        { id: "exercises", key: "exercises", title: "Ejercicios", order: 1, isActive: true },
-      ],
-      fields: [
-        {
-          id: "0",
-          key: "month",
-          label: "Mes / Etapa",
-          type: "text",
-          section: "routine",
-          order: -1,
-          isActive: true,
-          visibleToPatient: true,
-        },
-        {
-          id: "1",
-          key: "name",
-          label: "Nombre de Rutina",
-          type: "text",
-          section: "routine",
-          order: 0,
-          isActive: true,
-          visibleToPatient: true,
-          required: true,
-        },
-        {
-          id: "2",
-          key: "objective",
-          label: "Objetivo",
-          type: "textarea",
-          section: "routine",
-          order: 1,
-          isActive: true,
-          visibleToPatient: true,
-        },
-        {
-          id: "3",
-          key: "reevaluationDate",
-          label: "Fecha de Reevaluación",
-          type: "date",
-          section: "routine",
-          order: 2,
-          isActive: true,
-          visibleToPatient: true,
-        },
-        {
-          id: "4",
-          key: "warmUp",
-          label: "Entrada en Calor",
-          type: "textarea",
-          section: "routine",
-          order: 3,
-          isActive: true,
-          visibleToPatient: true,
-        },
-        {
-          id: "5",
-          key: "coolDown",
-          label: "Vuelta a la Calma",
-          type: "textarea",
-          section: "routine",
-          order: 4,
-          isActive: true,
-          visibleToPatient: true,
-        },
-        {
-          id: "6",
-          key: "comments",
-          label: "Comentarios",
-          type: "textarea",
-          section: "routine",
-          order: 5,
-          isActive: true,
-          visibleToPatient: false,
-        },
-        {
-          id: "7",
-          key: "exerciseList",
-          label: "Días de Entrenamiento",
-          type: "exercise_days",
-          section: "exercises",
-          order: 0,
-          isActive: true,
-          visibleToPatient: true,
-        },
-        {
-          id: "99",
-          key: "isVisible",
-          label: "Visible para el Paciente",
-          type: "toggle",
-          section: "routine",
-          order: 99,
-          isActive: true,
-          visibleToPatient: false,
-        },
-      ],
-    },
-    nutrition_anthropometry: {
-      name: "Evaluación Antropométrica",
-      description: "Mediciones y evaluación nutricional",
-      sections: [
-        { id: "consultation", key: "consultation", title: "Consulta", order: 0, isActive: true },
-        { id: "measurements", key: "measurements", title: "Mediciones", order: 1, isActive: true },
-        { id: "plan", key: "plan", title: "Plan", order: 2, isActive: true },
-      ],
-      fields: [
-        {
-          id: "1",
-          key: "sessionNumber",
-          label: "Número de Sesión",
-          type: "number",
-          section: "consultation",
-          order: 0,
-          isActive: true,
-          visibleToPatient: true,
-        },
-        {
-          id: "2",
-          key: "consultReason",
-          label: "Motivo de Consulta",
-          type: "textarea",
-          section: "consultation",
-          order: 1,
-          isActive: true,
-          visibleToPatient: true,
-        },
-        {
-          id: "3",
-          key: "lastLabWork",
-          label: "Último Laboratorio",
-          type: "textarea",
-          section: "consultation",
-          order: 2,
-          isActive: true,
-          visibleToPatient: true,
-        },
-        {
-          id: "4",
-          key: "previousNutritionTreatments",
-          label: "Tratamientos Anteriores",
-          type: "textarea",
-          section: "consultation",
-          order: 3,
-          isActive: true,
-          visibleToPatient: true,
-        },
-        {
-          id: "5",
-          key: "representativeFoodDay",
-          label: "Día Alimentario Representativo",
-          type: "textarea",
-          section: "consultation",
-          order: 4,
-          isActive: true,
-          visibleToPatient: true,
-        },
-        {
-          id: "6",
-          key: "weight",
-          label: "Peso (kg)",
-          type: "number",
-          section: "measurements",
-          order: 0,
-          isActive: true,
-          visibleToPatient: true,
-        },
-        {
-          id: "7",
-          key: "height",
-          label: "Altura (cm)",
-          type: "number",
-          section: "measurements",
-          order: 1,
-          isActive: true,
-          visibleToPatient: true,
-        },
-        {
-          id: "8",
-          key: "bmi",
-          label: "IMC",
-          type: "number",
-          section: "measurements",
-          order: 2,
-          isActive: true,
-          visibleToPatient: true,
-        },
-        {
-          id: "9",
-          key: "bodyFatPercentage",
-          label: "% Grasa Corporal",
-          type: "number",
-          section: "measurements",
-          order: 3,
-          isActive: true,
-          visibleToPatient: true,
-        },
-        {
-          id: "10",
-          key: "muscleMass",
-          label: "Masa Muscular",
-          type: "number",
-          section: "measurements",
-          order: 4,
-          isActive: true,
-          visibleToPatient: true,
-        },
-        {
-          id: "11",
-          key: "interpretation",
-          label: "Interpretación",
-          type: "textarea",
-          section: "plan",
-          order: 0,
-          isActive: true,
-          visibleToPatient: true,
-        },
-        {
-          id: "12",
-          key: "nutritionalObjective",
-          label: "Objetivo Nutricional",
-          type: "textarea",
-          section: "plan",
-          order: 1,
-          isActive: true,
-          visibleToPatient: true,
-        },
-        {
-          id: "13",
-          key: "nextSessionGoals",
-          label: "Objetivos Próxima Consulta",
-          type: "textarea",
-          section: "plan",
-          order: 2,
-          isActive: true,
-          visibleToPatient: true,
-        },
-      ],
-    },
-    nutrition_recipe: {
-      name: "Recetas",
-      description: "Recetas personalizadas para el paciente",
-      sections: [
-        { id: "recipe", key: "recipe", title: "Receta", order: 0, isActive: true },
-        { id: "macros", key: "macros", title: "Macros", order: 1, isActive: true },
-      ],
-      fields: [
-        {
-          id: "1",
-          key: "name",
-          label: "Nombre",
-          type: "text",
-          section: "recipe",
-          order: 0,
-          isActive: true,
-          visibleToPatient: true,
-          required: true,
-        },
-        {
-          id: "2",
-          key: "mealTime",
-          label: "Momento del Día",
-          type: "select",
-          section: "recipe",
-          order: 1,
-          isActive: true,
-          visibleToPatient: true,
-          options: [
-            { value: "desayuno", label: "Desayuno" },
-            { value: "almuerzo", label: "Almuerzo" },
-            { value: "merienda", label: "Merienda" },
-            { value: "cena", label: "Cena" },
-            { value: "snack", label: "Snack" },
-          ],
-        },
-        {
-          id: "3",
-          key: "ingredients",
-          label: "Ingredientes",
-          type: "textarea",
-          section: "recipe",
-          order: 2,
-          isActive: true,
-          visibleToPatient: true,
-        },
-        {
-          id: "4",
-          key: "preparation",
-          label: "Preparación",
-          type: "textarea",
-          section: "recipe",
-          order: 3,
-          isActive: true,
-          visibleToPatient: true,
-        },
-        {
-          id: "5",
-          key: "proteins",
-          label: "Proteínas (g)",
-          type: "number",
-          section: "macros",
-          order: 0,
-          isActive: true,
-          visibleToPatient: true,
-        },
-        {
-          id: "6",
-          key: "carbohydrates",
-          label: "Carbohidratos (g)",
-          type: "number",
-          section: "macros",
-          order: 1,
-          isActive: true,
-          visibleToPatient: true,
-        },
-        {
-          id: "7",
-          key: "fats",
-          label: "Grasas (g)",
-          type: "number",
-          section: "macros",
-          order: 2,
-          isActive: true,
-          visibleToPatient: true,
-        },
-        {
-          id: "8",
-          key: "calories",
-          label: "Calorías",
-          type: "number",
-          section: "macros",
-          order: 3,
-          isActive: true,
-          visibleToPatient: true,
-        },
-      ],
-    },
-    massage_evaluation: {
-      name: "Evaluación de Masajes",
-      description: "Evaluación para sesiones de masaje",
-      sections: [
-        { id: "session", key: "session", title: "Datos de Sesión", order: 0, isActive: true },
-        { id: "preferences", key: "preferences", title: "Preferencias", order: 1, isActive: true },
-      ],
-      fields: [
-        {
-          id: "1",
-          key: "sessionNumber",
-          label: "Número de Sesión",
-          type: "number",
-          section: "session",
-          order: 0,
-          isActive: true,
-          visibleToPatient: true,
-        },
-        {
-          id: "2",
-          key: "trainingHours",
-          label: "Horas de Entrenamiento",
-          type: "number",
-          section: "session",
-          order: 1,
-          isActive: true,
-          visibleToPatient: true,
-        },
-        {
-          id: "3",
-          key: "fatigueLevelNum",
-          label: "Nivel de Fatiga (1-10)",
-          type: "scale",
-          section: "session",
-          order: 2,
-          isActive: true,
-          visibleToPatient: true,
-          min: 1,
-          max: 10,
-        },
-        {
-          id: "4",
-          key: "loadWeek",
-          label: "Tipo de Semana",
-          type: "select",
-          section: "session",
-          order: 3,
-          isActive: true,
-          visibleToPatient: true,
-          options: [
-            { value: "carga", label: "Semana de Carga" },
-            { value: "regenerativa", label: "Semana Regenerativa" },
-          ],
-        },
-        {
-          id: "5",
-          key: "previousMassageExperience",
-          label: "Experiencia Previa con Masajes",
-          type: "toggle",
-          section: "preferences",
-          order: 0,
-          isActive: true,
-          visibleToPatient: true,
-        },
-        {
-          id: "6",
-          key: "pressurePreference",
-          label: "Preferencia de Presión",
-          type: "select",
-          section: "preferences",
-          order: 1,
-          isActive: true,
-          visibleToPatient: true,
-          options: [
-            { value: "fuerte", label: "Masaje Fuerte" },
-            { value: "suave", label: "Masaje Suave" },
-          ],
-        },
-        {
-          id: "7",
-          key: "ambientPreference",
-          label: "Ambiente Preferido",
-          type: "select",
-          section: "preferences",
-          order: 2,
-          isActive: true,
-          visibleToPatient: true,
-          options: [
-            { value: "silencio", label: "Silencio" },
-            { value: "musica", label: "Música" },
-          ],
-        },
-        {
-          id: "8",
-          key: "massageFrequency",
-          label: "Frecuencia de Masajes",
-          type: "text",
-          section: "preferences",
-          order: 3,
-          isActive: true,
-          visibleToPatient: true,
-        },
-        {
-          id: "9",
-          key: "sessionWork",
-          label: "Trabajado en Sesión",
-          type: "textarea",
-          section: "session",
-          order: 4,
-          isActive: true,
-          visibleToPatient: true,
-        },
-        {
-          id: "10",
-          key: "comments",
-          label: "Comentarios",
-          type: "textarea",
-          section: "session",
-          order: 5,
-          isActive: true,
-          visibleToPatient: false,
-        },
-      ],
-    },
-    yoga_evaluation: {
-      name: "Evaluación de Yoga",
-      description: "Evaluación inicial para yoga",
-      sections: [{ id: "evaluation", key: "evaluation", title: "Evaluación", order: 0, isActive: true }],
-      fields: [
-        {
-          id: "1",
-          key: "experienceLevel",
-          label: "Nivel de Experiencia",
-          type: "select",
-          section: "evaluation",
-          order: 0,
-          isActive: true,
-          visibleToPatient: true,
-          options: [
-            { value: "principiante", label: "Principiante" },
-            { value: "intermedio", label: "Intermedio" },
-            { value: "avanzado", label: "Avanzado" },
-          ],
-        },
-        {
-          id: "2",
-          key: "objective",
-          label: "Objetivo",
-          type: "textarea",
-          section: "evaluation",
-          order: 1,
-          isActive: true,
-          visibleToPatient: true,
-        },
-        {
-          id: "3",
-          key: "stressLevel",
-          label: "Nivel de Estrés (1-10)",
-          type: "scale",
-          section: "evaluation",
-          order: 2,
-          isActive: true,
-          visibleToPatient: true,
-          min: 1,
-          max: 10,
-        },
-        {
-          id: "4",
-          key: "sleepQuality",
-          label: "Calidad de Sueño",
-          type: "textarea",
-          section: "evaluation",
-          order: 3,
-          isActive: true,
-          visibleToPatient: true,
-        },
-        {
-          id: "5",
-          key: "physicalLimitations",
-          label: "Limitaciones Físicas",
-          type: "textarea",
-          section: "evaluation",
-          order: 4,
-          isActive: true,
-          visibleToPatient: true,
-        },
-        {
-          id: "6",
-          key: "contraindications",
-          label: "Contraindicaciones",
-          type: "textarea",
-          section: "evaluation",
-          order: 5,
-          isActive: true,
-          visibleToPatient: false,
-        },
-      ],
-    },
-    yoga_routine: {
-      name: "Rutina de Yoga",
-      description: "Rutinas personalizadas de yoga",
-      sections: [{ id: "routine", key: "routine", title: "Rutina", order: 0, isActive: true }],
-      fields: [
-        {
-          id: "1",
-          key: "name",
-          label: "Nombre",
-          type: "text",
-          section: "routine",
-          order: 0,
-          isActive: true,
-          visibleToPatient: true,
-          required: true,
-        },
-        {
-          id: "2",
-          key: "objective",
-          label: "Objetivo",
-          type: "textarea",
-          section: "routine",
-          order: 1,
-          isActive: true,
-          visibleToPatient: true,
-        },
-        {
-          id: "3",
-          key: "frequency",
-          label: "Frecuencia",
-          type: "text",
-          section: "routine",
-          order: 2,
-          isActive: true,
-          visibleToPatient: true,
-        },
-        {
-          id: "4",
-          key: "videoUrl",
-          label: "Video (URL)",
-          type: "text",
-          section: "routine",
-          order: 3,
-          isActive: true,
-          visibleToPatient: true,
-        },
-        {
-          id: "5",
-          key: "instructions",
-          label: "Indicaciones",
-          type: "textarea",
-          section: "routine",
-          order: 4,
-          isActive: true,
-          visibleToPatient: true,
-        },
-      ],
-    },
-    evolution_note: {
-      name: "Notas de Evolución",
-      description: "Notas de seguimiento del paciente",
-      sections: [{ id: "note", key: "note", title: "Nota", order: 0, isActive: true }],
-      fields: [
-        {
-          id: "1",
-          key: "title",
-          label: "Título",
-          type: "text",
-          section: "note",
-          order: 0,
-          isActive: true,
-          visibleToPatient: false,
-        },
-        {
-          id: "2",
-          key: "content",
-          label: "Contenido",
-          type: "textarea",
-          section: "note",
-          order: 1,
-          isActive: true,
-          visibleToPatient: false,
-        },
-        {
-          id: "3",
-          key: "isInternal",
-          label: "¿Nota Interna?",
-          type: "toggle",
-          section: "note",
-          order: 2,
-          isActive: true,
-          visibleToPatient: false,
-        },
-      ],
-    },
-    exercise_log: {
-      name: "Registro de Avance",
-      description: "Registro de ejercicios realizados por el paciente",
-      sections: [
-        { id: "summary", key: "summary", title: "Resumen", order: 0, isActive: true },
-        { id: "details", key: "details", title: "Detalle", order: 1, isActive: true },
-      ],
-      fields: [
-        { id: "1", key: "dayName", label: "Día de Rutina", type: "text", section: "summary", order: 0, isActive: true, visibleToPatient: true },
-        { id: "2", key: "notes", label: "Notas de Sesión", type: "textarea", section: "details", order: 2, isActive: true, visibleToPatient: true },
-        { id: "3", key: "exercises", label: "Ejercicios Realizados", type: "exercise_list", section: "details", order: 1, isActive: true, visibleToPatient: true },
-      ]
-    },
-  }
-  return configs[formType] || { name: "", sections: [], fields: [] }
-}
 
 export default function ClinicalFormsConfigPage() {
   const { user } = useAuth()
-  const { serviceConfigs } = useData()
+  const {
+    clinicalFormConfigs,
+    addClinicalFormConfig,
+    updateClinicalFormConfig,
+    deleteClinicalFormConfig
+  } = useData()
 
-  const [formConfigs, setFormConfigs] = useState<ClinicalFormConfig[]>([])
   const [selectedFormType, setSelectedFormType] = useState<ClinicalFormType>("kinesiology_evaluation")
   const [selectedConfig, setSelectedConfig] = useState<ClinicalFormConfig | null>(null)
   const [showFieldDialog, setShowFieldDialog] = useState(false)
@@ -1521,59 +104,20 @@ export default function ClinicalFormsConfigPage() {
     typeKey: ""
   })
   const [showEditFormDialog, setShowEditFormDialog] = useState(false)
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false)
   const [editFormForm, setEditFormForm] = useState({
     name: "",
     category: "nutricion",
   })
 
-  // Load form configs from localStorage
-  useEffect(() => {
-    const saved = localStorage.getItem("tense_erp_clinical_form_configs")
-    if (saved) {
-      try {
-        const parsed = JSON.parse(saved)
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          // Deduplicate by formType just in case
-          const uniqueConfigs = parsed.reduce((acc: ClinicalFormConfig[], current: ClinicalFormConfig) => {
-            const x = acc.find(item => item.formType === current.formType);
-            if (!x) {
-              return acc.concat([current]);
-            } else {
-              return acc;
-            }
-          }, []);
-          setFormConfigs(uniqueConfigs)
-          return
-        }
-      } catch (e) {
-        console.error("Error parsing clinical form configs:", e)
-      }
-    }
-    // Initialize with defaults
-    const defaults: ClinicalFormConfig[] = FORM_TYPES.map((ft) => {
-      const defaultConfig = getDefaultFormConfig(ft.value)
-      return {
-        id: ft.value,
-        formType: ft.value,
-        name: defaultConfig.name || ft.label,
-        description: defaultConfig.description || "",
-        sections: (defaultConfig.sections || []) as FormSectionConfig[],
-        fields: (defaultConfig.fields || []) as FormFieldConfig[],
-        isActive: true,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      }
-    })
-    setFormConfigs(defaults)
-    localStorage.setItem("tense_erp_clinical_form_configs", JSON.stringify(defaults))
-  }, [])
+  // Seeding removed - DataContext handles initialization
 
   // Derive dynamic form types from formConfigs
   const dynamicFormTypes = useMemo(() => {
     const seen = new Set<string>()
     const uniqueTypes: any[] = []
 
-    formConfigs.forEach(c => {
+    clinicalFormConfigs.forEach(c => {
       if (seen.has(c.formType)) return
       seen.add(c.formType)
 
@@ -1602,25 +146,17 @@ export default function ClinicalFormsConfigPage() {
     })
 
     return uniqueTypes
-  }, [formConfigs])
+  }, [clinicalFormConfigs])
 
   // Update selected config when form type changes
   useEffect(() => {
-    const config = formConfigs.find((c) => c.formType === selectedFormType)
+    const config = clinicalFormConfigs.find((c) => c.formType === selectedFormType)
     setSelectedConfig(config || null)
     setExpandedSections(new Set(config?.sections.map((s) => s.id) || []))
-  }, [selectedFormType, formConfigs])
-
-  const saveConfigs = (newConfigs: ClinicalFormConfig[]) => {
-    setFormConfigs(newConfigs)
-    localStorage.setItem("tense_erp_clinical_form_configs", JSON.stringify(newConfigs))
-  }
+  }, [selectedFormType, clinicalFormConfigs])
 
   const updateConfig = (updatedConfig: ClinicalFormConfig) => {
-    const newConfigs = formConfigs.map((c) =>
-      c.id === updatedConfig.id ? { ...updatedConfig, updatedAt: new Date() } : c,
-    )
-    saveConfigs(newConfigs)
+    updateClinicalFormConfig(updatedConfig.id, updatedConfig)
     setSelectedConfig(updatedConfig)
   }
 
@@ -1799,34 +335,27 @@ export default function ClinicalFormsConfigPage() {
       createdAt: new Date(),
       updatedAt: new Date(),
     }
-    const newConfigs = formConfigs.map((c) => (c.formType === selectedFormType ? newConfig : c))
-    saveConfigs(newConfigs)
+    updateClinicalFormConfig(newConfig.id, newConfig)
     setSelectedConfig(newConfig)
   }
 
   const createNewForm = () => {
     if (!newFormForm.name) return
 
-    let typeKey = newFormForm.typeKey
-    if (!typeKey) {
-      typeKey = newFormForm.name
-        .toLowerCase()
-        .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
-        .replace(/[^a-z0-9]/g, "_")
-        .replace(/_+/g, "_")
-        .replace(/^_|_$/g, "")
+    const typeKey = newFormForm.typeKey || newFormForm.name
+      .toLowerCase()
+      .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+      .replace(/[^a-z0-9]/g, "_")
+      .replace(/_+/g, "_")
+      .replace(/^_|_$/g, "") || `form_${Date.now()}`
 
-      if (!typeKey) typeKey = `form_${Date.now()}`
-    }
-
-    // Ensure it doesn't exist
-    if (formConfigs.some(c => c.formType === typeKey)) {
-      typeKey = `${typeKey}_${Date.now()}`
-    }
+    const finalTypeKey = clinicalFormConfigs.some(c => c.formType === typeKey)
+      ? `${typeKey}_${Date.now()}`
+      : typeKey
 
     const newConfig: ClinicalFormConfig = {
-      id: typeKey,
-      formType: typeKey as ClinicalFormType,
+      id: finalTypeKey,
+      formType: finalTypeKey as ClinicalFormType,
       name: newFormForm.name,
       category: newFormForm.category,
       description: "",
@@ -1837,9 +366,8 @@ export default function ClinicalFormsConfigPage() {
       updatedAt: new Date(),
     }
 
-    const newConfigs = [...formConfigs, newConfig]
-    saveConfigs(newConfigs)
-    setSelectedFormType(typeKey as ClinicalFormType)
+    addClinicalFormConfig(newConfig)
+    setSelectedFormType(finalTypeKey as ClinicalFormType)
     setShowNewFormDialog(false)
     setNewFormForm({ name: "", category: "nutricion", typeKey: "" })
   }
@@ -1863,31 +391,37 @@ export default function ClinicalFormsConfigPage() {
       updatedAt: new Date()
     }
 
-    // Note: The category is derived from FORM_TYPES_INFO or dynamicFormTypes logic
-    // If we want to change category for a dynamic form, we need to store it in the config
-    // Let's add 'category' to ClinicalFormConfig if it's missing or handle it in dynamicFormTypes
-
-    // For now, let's just update the name and let the dynamicFormTypes guess the category
-    // OR, better: update formConfigs and ensure category change is reflected.
-    // The current dynamicFormTypes logic usesStartsWith cat.id or guesses from name.
-
-    const newConfigs = formConfigs.map(c =>
-      c.formType === selectedFormType ? updatedConfig : c
-    )
-    saveConfigs(newConfigs)
+    updateClinicalFormConfig(updatedConfig.id, updatedConfig)
     setShowEditFormDialog(false)
   }
 
   const deleteForm = () => {
     if (!selectedConfig) return
-    if (!window.confirm(`¿Estás seguro de que deseas eliminar la ficha "${selectedConfig.name}"? Esta acción no se puede deshacer.`)) return
+    setShowDeleteDialog(true)
+  }
 
-    const newConfigs = formConfigs.filter(c => c.formType !== selectedFormType)
-    saveConfigs(newConfigs)
+  const confirmDelete = () => {
+    if (!selectedConfig) return
 
-    // Select the first available form
-    if (newConfigs.length > 0) {
-      setSelectedFormType(newConfigs[0].formType)
+    console.log("[ConfigPage] Deleting form:", {
+      id: selectedConfig.id,
+      type: selectedFormType,
+      name: selectedConfig.name
+    })
+
+    const remainingConfigs = clinicalFormConfigs.filter(c => c.id !== selectedConfig.id)
+
+    deleteClinicalFormConfig(selectedConfig.id)
+    setShowDeleteDialog(false)
+
+    // Clear selection immediately to prevent stale UI
+    setSelectedConfig(null)
+
+    // Select the first available form or force reset
+    if (remainingConfigs.length > 0) {
+      setSelectedFormType(remainingConfigs[0].formType)
+    } else {
+      setSelectedFormType("" as any)
     }
   }
 
@@ -2555,6 +1089,27 @@ export default function ClinicalFormsConfigPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>¿Confirmar eliminación?</AlertDialogTitle>
+            <AlertDialogDescription>
+              ¿Estás seguro de que deseas eliminar la ficha clínica <strong>"{selectedConfig?.name}"</strong>?<br /><br />
+              Esta acción eliminará la configuración de campos y no se podrá deshacer. Los datos ya cargados en pacientes no se verán afectados, pero ya no podrás usar esta ficha para nuevas entradas.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmDelete}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Eliminar Permanentemente
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </AppLayout>
   )
 }

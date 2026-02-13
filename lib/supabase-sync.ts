@@ -155,6 +155,41 @@ export const SYNC_CONFIG = {
         localStorageKey: 'tense_erp_transactions',
         tableName: 'tense_transactions'
     },
+    clinicalFormConfigs: {
+        localStorageKey: 'tense_erp_clinical_form_configs',
+        tableName: 'clinical_form_configs'
+    },
+    mealTemplates: {
+        localStorageKey: 'tense_erp_meal_templates',
+        tableName: 'meal_templates'
+    },
+    // New Entities
+    products: { localStorageKey: 'tense_erp_products', tableName: 'tense_products' },
+    productCategories: { localStorageKey: 'tense_erp_product_categories', tableName: 'tense_product_categories' },
+    suppliers: { localStorageKey: 'tense_erp_suppliers', tableName: 'tense_suppliers' },
+    productPurchases: { localStorageKey: 'tense_erp_product_purchases', tableName: 'tense_product_purchases' },
+    productSales: { localStorageKey: 'tense_erp_product_sales', tableName: 'tense_product_sales' },
+
+    cashRegisters: { localStorageKey: 'tense_erp_cash_registers', tableName: 'tense_cash_registers' },
+    bankAccounts: { localStorageKey: 'tense_erp_bank_accounts', tableName: 'tense_bank_accounts' },
+    cashTransfers: { localStorageKey: 'tense_erp_cash_transfers', tableName: 'tense_cash_transfers' },
+    settlements: { localStorageKey: 'tense_erp_settlements', tableName: 'tense_settlements' },
+    interProfessionalAdjustments: { localStorageKey: 'tense_erp_inter_professional_adjustments', tableName: 'tense_inter_professional_adjustments' },
+    receptionDailyCloses: { localStorageKey: 'tense_erp_reception_daily_closes', tableName: 'tense_reception_daily_closes' },
+    receptionMonthlyCloses: { localStorageKey: 'tense_erp_reception_monthly_closes', tableName: 'tense_reception_monthly_closes' },
+
+    waitlist: { localStorageKey: 'tense_erp_waitlist', tableName: 'tense_waitlist' },
+    staffTasks: { localStorageKey: 'tense_erp_staff_tasks', tableName: 'tense_staff_tasks' },
+    staffGoals: { localStorageKey: 'tense_erp_staff_goals', tableName: 'tense_staff_goals' },
+
+    clinicalTasks: { localStorageKey: 'tense_erp_clinical_tasks', tableName: 'tense_clinical_tasks' },
+    clinicalTaskEvents: { localStorageKey: 'tense_erp_clinical_task_events', tableName: 'tense_clinical_task_events' },
+    medicalRecords: { localStorageKey: 'tense_erp_medical_records', tableName: 'tense_medical_records' },
+    clinicalEntries: { localStorageKey: 'tense_erp_clinical_entries', tableName: 'tense_clinical_entries' },
+
+    chatConversations: { localStorageKey: 'tense_erp_chat_conversations', tableName: 'tense_chat_conversations' },
+    chatMessages: { localStorageKey: 'tense_erp_chat_messages', tableName: 'tense_chat_messages' },
+    communityPosts: { localStorageKey: 'tense_erp_community_posts', tableName: 'tense_community_posts' },
 }
 
 // ============================================

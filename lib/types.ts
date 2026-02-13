@@ -422,7 +422,9 @@ export type FormFieldType =
   | "section"
   | "note"
   | "exercise_list"
+  | "exercise_list"
   | "exercise_days"
+  | "meal_plan"
 
 export interface FormSectionConfig {
   id: string
@@ -458,6 +460,7 @@ export type ClinicalFormType =
   | "kine_home"
   | "training_evaluation"
   | "training_routine"
+  | "nutrition_evaluation"
   | "nutrition_anthropometry"
   | "nutrition_recipe"
   | "massage_evaluation"
@@ -1037,3 +1040,29 @@ export interface CompanyInfo {
   currency: string
   openingHours: string
 }
+
+export interface MealOption {
+  id: string
+  name: string
+  description?: string
+  ingredients?: string
+  preparation?: string
+  videoUrl?: string
+  pdfUrl?: string
+}
+
+export interface MealPlanItem {
+  id: string
+  name: string
+  time?: string
+  notes?: string
+  options: MealOption[]
+}
+
+export interface MealTemplate {
+  id: string
+  name: string
+  content: MealPlanItem[]
+  createdAt?: Date
+}
+

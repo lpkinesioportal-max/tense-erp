@@ -44,7 +44,11 @@ import {
   InterProfessionalAdjustment,
   ClinicalEntry,
   Covenant,
+  ClinicalFormType,
+  MealTemplate,
+  MealPlanItem, // Ensure this is imported if used in MealTemplate content
 } from "./types"
+import { getDefaultFormConfig, FORM_TYPES_INFO } from "./clinical-forms-defaults"
 import {
   users as mockUsers,
   professionals as mockProfessionals,
@@ -288,6 +292,11 @@ interface DataContextType {
   updateCovenant: (id: string, data: Partial<Covenant>) => void
   deleteCovenant: (id: string) => void
   getCovenant: (id: string) => Covenant | undefined
+
+  // Meal Templates
+  mealTemplates: MealTemplate[]
+  saveMealTemplate: (name: string, content: MealPlanItem[]) => Promise<void>
+  deleteMealTemplate: (id: string) => Promise<void>
 }
 
 const DataContext = createContext<DataContextType | undefined>(undefined)
@@ -359,6 +368,8 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
 
   const [clinicalTasks, setClinicalTasks] = useState<ClinicalTask[]>([])
   const [clinicalTaskEvents, setClinicalTaskEvents] = useState<ClinicalTaskEvent[]>([])
+
+  const [mealTemplates, setMealTemplates] = useState<MealTemplate[]>([])
 
   const [medicalRecords, setMedicalRecords] = useState<MedicalRecord[]>([])
   const [companyInfo, setCompanyInfo] = useState<CompanyInfo>(() => {
@@ -451,287 +462,157 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       if (typeof window === "undefined") return
 
       // Load from Supabase ONLY for main entities
-      const [supabaseAppts, supabaseClients, supabaseProfs, supabaseUsers, supabasePacks, supabaseCovenants, supabaseTransactions] = await Promise.all([
-        loadFromSupabase<Appointment>(
-          SYNC_CONFIG.appointments.tableName,
-          mockAppointments
-        ),
-        loadFromSupabase<Client>(
-          SYNC_CONFIG.clients.tableName,
-          mockClients
-        ),
-        loadFromSupabase<Professional>(
-          SYNC_CONFIG.professionals.tableName,
-          mockProfessionals
-        ),
-        loadFromSupabase<User>(
-          SYNC_CONFIG.users.tableName,
-          mockUsers
-        ),
-        loadFromSupabase<ServicePack>(
-          SYNC_CONFIG.servicePacks.tableName,
-          mockServicePacks
-        ),
-        loadFromSupabase<Covenant>(
-          SYNC_CONFIG.covenants.tableName,
-          []
-        ),
-        loadFromSupabase<Transaction>(
-          SYNC_CONFIG.transactions.tableName,
-          []
-        ),
+      const [
+        supabaseAppts, supabaseClients, supabaseProfs, supabaseUsers,
+        supabasePacks, supabaseCovenants, supabaseTransactions,
+        supabaseFormConfigs, supabaseMealTemplates,
+        // New Entities
+        supabaseProducts, supabaseCategories, supabaseSuppliers,
+        supabasePurchases, supabaseSales,
+        supabaseCashRegisters, supabaseBankAccounts, supabaseCashTransfers,
+        supabaseSettlements, supabaseAdjustments,
+        supabaseDailyCloses, supabaseMonthlyCloses,
+        supabaseWaitlist, supabaseStaffTasks, supabaseStaffGoals,
+        supabaseClinicalTasks, supabaseClinicalTaskEvents,
+        supabaseMedicalRecords, supabaseClinicalEntries,
+        supabaseConversations, supabaseChatMessages, supabasePosts
+      ] = await Promise.all([
+        loadFromSupabase<Appointment>(SYNC_CONFIG.appointments.tableName, []),
+        loadFromSupabase<Client>(SYNC_CONFIG.clients.tableName, []),
+        loadFromSupabase<Professional>(SYNC_CONFIG.professionals.tableName, []),
+        loadFromSupabase<User>(SYNC_CONFIG.users.tableName, []),
+        loadFromSupabase<ServicePack>(SYNC_CONFIG.servicePacks.tableName, []),
+        loadFromSupabase<Covenant>(SYNC_CONFIG.covenants.tableName, []),
+        loadFromSupabase<Transaction>(SYNC_CONFIG.transactions.tableName, []),
+        loadFromSupabase<ClinicalFormConfig>(SYNC_CONFIG.clinicalFormConfigs.tableName, []),
+        loadFromSupabase<MealTemplate>(SYNC_CONFIG.mealTemplates.tableName, []),
+
+        // New Loads
+        loadFromSupabase<Product>(SYNC_CONFIG.products.tableName, []),
+        loadFromSupabase<ProductCategoryConfig>(SYNC_CONFIG.productCategories.tableName, []),
+        loadFromSupabase<Supplier>(SYNC_CONFIG.suppliers.tableName, []),
+        loadFromSupabase<ProductPurchase>(SYNC_CONFIG.productPurchases.tableName, []),
+        loadFromSupabase<ProductSale>(SYNC_CONFIG.productSales.tableName, []),
+
+        loadFromSupabase<CashRegister>(SYNC_CONFIG.cashRegisters.tableName, []),
+        loadFromSupabase<BankAccount>(SYNC_CONFIG.bankAccounts.tableName, []),
+        loadFromSupabase<CashTransfer>(SYNC_CONFIG.cashTransfers.tableName, []),
+        loadFromSupabase<Settlement>(SYNC_CONFIG.settlements.tableName, []),
+        loadFromSupabase<InterProfessionalAdjustment>(SYNC_CONFIG.interProfessionalAdjustments.tableName, []),
+
+        loadFromSupabase<ReceptionDailyClose>(SYNC_CONFIG.receptionDailyCloses.tableName, []),
+        loadFromSupabase<ReceptionMonthlyClose>(SYNC_CONFIG.receptionMonthlyCloses.tableName, []),
+
+        loadFromSupabase<WaitlistEntry>(SYNC_CONFIG.waitlist.tableName, []),
+        loadFromSupabase<StaffTask>(SYNC_CONFIG.staffTasks.tableName, []),
+        loadFromSupabase<StaffGoal>(SYNC_CONFIG.staffGoals.tableName, []),
+
+        loadFromSupabase<ClinicalTask>(SYNC_CONFIG.clinicalTasks.tableName, []),
+        loadFromSupabase<ClinicalTaskEvent>(SYNC_CONFIG.clinicalTaskEvents.tableName, []),
+        loadFromSupabase<MedicalRecord>(SYNC_CONFIG.medicalRecords.tableName, []),
+        loadFromSupabase<ClinicalEntry>(SYNC_CONFIG.clinicalEntries.tableName, []),
+
+        loadFromSupabase<ChatConversation>(SYNC_CONFIG.chatConversations.tableName, []),
+        loadFromSupabase<ChatMessage>(SYNC_CONFIG.chatMessages.tableName, []),
+        loadFromSupabase<CommunityPost>(SYNC_CONFIG.communityPosts.tableName, []),
       ])
 
-      // Use Supabase data first, then LocalStorage, final fallback to mock
-      const isFirstRun = supabaseProfs.length === 0 && supabaseClients.length === 0 && supabaseUsers.length === 0;
+      // =========================================================================================
+      // CLOUD-FIRST DATA INITIALIZATION
+      // We prioritize Supabase data. LocalStorage is only updated, not read (unless fallback needed).
+      // =========================================================================================
 
-      // Set appointments
-      const storedAppts = loadFromStorage<Appointment[]>("tense_erp_appointments", [])
-      const finalAppts = supabaseAppts.length > 0 ? supabaseAppts : (storedAppts.length > 0 ? storedAppts : mockAppointments)
-      setAppointments(finalAppts)
-      saveToStorage("tense_erp_appointments", finalAppts)
+      // 1. Core Entities
+      setAppointments(supabaseAppts)
+      saveToStorage(SYNC_CONFIG.appointments.localStorageKey, supabaseAppts)
 
-      // Set clients
-      const storedClients = loadFromStorage<Client[]>("tense_erp_clients", [])
-      const finalClients = supabaseClients.length > 0 ? supabaseClients : (storedClients.length > 0 ? storedClients : mockClients)
-      setClients(finalClients)
-      saveToStorage("tense_erp_clients", finalClients)
+      setClients(supabaseClients)
+      saveToStorage(SYNC_CONFIG.clients.localStorageKey, supabaseClients)
 
-      // Set professionals
-      const storedProfs = loadFromStorage<Professional[]>("tense_erp_professionals", [])
-      // Filter out deleted professionals from Supabase data
-      // const activeSupabaseProfs = supabaseProfs.filter(p => p.status !== 'deleted')
-      // TEMPORARY: Showing all professionals including deleted to recover data
-      const activeSupabaseProfs = supabaseProfs
+      setProfessionals(supabaseProfs)
+      saveToStorage(SYNC_CONFIG.professionals.localStorageKey, supabaseProfs)
 
-      let finalProfs = activeSupabaseProfs.length > 0 ? activeSupabaseProfs : (storedProfs.length > 0 ? storedProfs : mockProfessionals)
-      if (supabaseProfs.length > 0) {
-        storedProfs.forEach(local => {
-          // Add local items ONLY if they are not in the raw Supabase response (to avoid resurrecting deleted items)
-          if (!supabaseProfs.some(remote => remote.id === local.id)) {
-            finalProfs.push(local)
-          }
-        })
-      }
-      setProfessionals(finalProfs)
-      saveToStorage("tense_erp_professionals", finalProfs)
-
-      // Select all active professionals by default on initialization
-      const activeIds = finalProfs
-        .filter(p => (p.status === 'active' || !p.status) && p.isActive !== false)
-        .map(p => p.id)
-      setSelectedProfessionalIds(activeIds)
-
-      // Set users
-      const storedUsers = loadFromStorage<User[]>("tense_erp_users", [])
-      let finalUsers = supabaseUsers.length > 0 ? supabaseUsers : (storedUsers.length > 0 ? storedUsers : mockUsers)
-
-      // Enforce System Users (Admin, Reception) existence if missing
-      // This recovers critical system accounts if Supabase data is partial
+      // Users - Ensure Admin/Reception exists if DB is empty (Bootstrap)
+      let finalUsers = [...supabaseUsers]
       const systemUsers = mockUsers.filter(u => u.role === 'super_admin' || u.role === 'admin' || u.email.includes('recepcion'))
       systemUsers.forEach(sysUser => {
         if (!finalUsers.some(u => u.email === sysUser.email)) {
           finalUsers.push(sysUser)
         }
       })
-
-      // INTEGRIDAD DE DATOS (Auto-Repair): Asegurar que todo Profesional y Cliente tenga su Usuario correspondiente
-      // Si existen en la lista de entidades pero no en usuarios, los creamos/restauramos.
-
-      // 1. Restaurar Usuarios de Profesionales
-      finalProfs.forEach(prof => {
-        // Check by email OR professionalId
-        if (!finalUsers.some(u => u.email === prof.email || u.professionalId === prof.id)) {
-          console.log(`[Auto-Repair] Creating missing user for professional: ${prof.name}`)
-          finalUsers.push({
-            id: `user-gen-prof-${prof.id.split('-').pop() || Date.now()}`,
-            name: prof.name,
-            email: prof.email,
-            role: "profesional",
-            status: prof.status === 'deleted' ? 'inactive' : (prof.status as UserStatus),
-            isActive: prof.isActive,
-            professionalId: prof.id,
-            password: prof.password || "123456",
-            createdAt: new Date(),
-            phone: prof.phone
-          })
-        }
-      })
-
-      // 2. Restaurar Usuarios de Clientes
-      finalClients.forEach(client => {
-        // Check by email OR clientId
-        if (!finalUsers.some(u => u.email === client.email || u.clientId === client.id)) {
-          // Solo restauramos si tiene email válido
-          if (client.email && client.email.includes('@')) {
-            console.log(`[Auto-Repair] Creating missing user for client: ${client.name}`)
-            finalUsers.push({
-              id: `user-gen-client-${client.id.split('-').pop() || Date.now()}`,
-              name: client.name,
-              email: client.email,
-              role: "cliente",
-              status: "active",
-              isActive: true,
-              clientId: client.id,
-              password: client.password || "123456",
-              createdAt: new Date(),
-              phone: client.phone
-            })
-          }
-        }
-      })
-
       setUsers(finalUsers)
-      saveToStorage("tense_erp_users", finalUsers)
+      saveToStorage(SYNC_CONFIG.users.localStorageKey, finalUsers)
 
-      // Set initial transactions from Supabase/Store
-      const storedTransactions = loadFromStorage<Transaction[]>("tense_erp_transactions", [])
-      let finalTransactions = supabaseTransactions.length > 0 ? supabaseTransactions : (storedTransactions.length > 0 ? storedTransactions : mockTransactions)
+      // 2. Services & Configs
+      setServicePacks(supabasePacks)
+      saveToStorage(SYNC_CONFIG.servicePacks.localStorageKey, supabasePacks)
 
-      // 3. Restaurar Transacciones de Turnos (Auto-Repair)
-      // Asegurar que cada pago dentro de un turno tenga su transacción correspondiente
-      finalAppts.forEach(apt => {
-        if (apt.payments && apt.payments.length > 0) {
-          apt.payments.forEach(pay => {
-            // Check if this payment already has a transaction (by appointmentId and matching amount/date)
-            // Note: date comparison can be tricky, so we check approximate match if possible
-            const exists = finalTransactions.some(txn =>
-              txn.appointmentId === apt.id &&
-              Math.abs(txn.amount) === pay.amount &&
-              (txn.paymentMethod === pay.paymentMethod)
-            )
+      setCovenants(supabaseCovenants)
+      saveToStorage(SYNC_CONFIG.covenants.localStorageKey, supabaseCovenants)
 
-            if (!exists) {
-              console.log(`[Auto-Repair] Creating missing transaction for payment in appointment ${apt.id}`)
-              const newTxn: Transaction = {
-                id: `txn-auto-${pay.id || Date.now()}`,
-                date: pay.paymentDate || apt.date,
-                type: pay.isDeposit ? "deposit_payment" : "session_payment",
-                amount: pay.amount,
-                paymentMethod: pay.paymentMethod,
-                cashRegisterType: "professional",
-                professionalId: pay.receivedByProfessionalId || apt.professionalId,
-                appointmentId: apt.id,
-                clientId: apt.clientId,
-                notes: pay.notes || (pay.isDeposit ? "Seña de turno (Auto-restaurado)" : "Pago de sesión (Auto-restaurado)"),
-                createdAt: new Date(),
-              }
-              finalTransactions.push(newTxn)
-              // Sync to Supabase if missing
-              syncToSupabase(SYNC_CONFIG.transactions.tableName, [newTxn])
-            }
-          })
+      setTransactions(supabaseTransactions)
+      saveToStorage(SYNC_CONFIG.transactions.localStorageKey, supabaseTransactions)
+
+      // Merge Form Configs (Remote + Defaults)
+      // Check if we have remote configs, if not, fallback to defaults
+      // But we always prefer remote if available.
+      let finalFormConfigs = [...supabaseFormConfigs]
+      // Ensure defaults exist if not in DB
+      FORM_TYPES_INFO.forEach(typeInfo => {
+        if (!finalFormConfigs.find(c => c.formType === typeInfo.value)) {
+          finalFormConfigs.push({
+            id: crypto.randomUUID(),
+            ...getDefaultFormConfig(typeInfo.value),
+            formType: typeInfo.value,
+            createdAt: new Date(),
+            updatedAt: new Date(),
+            isActive: true
+          } as ClinicalFormConfig)
         }
       })
+      setClinicalFormConfigs(finalFormConfigs)
+      saveToStorage(SYNC_CONFIG.clinicalFormConfigs.localStorageKey, finalFormConfigs)
 
-      setTransactions(finalTransactions)
-      saveToStorage("tense_erp_transactions", finalTransactions)
-      setSettlements(loadFromStorage("tense_erp_settlements", mockSettlements))
+      setMealTemplates(supabaseMealTemplates)
+      saveToStorage(SYNC_CONFIG.mealTemplates.localStorageKey, supabaseMealTemplates)
 
-      const migratedUsers = finalUsers.map((u: User) => {
-        if (u.role === "super_admin") {
-          return {
-            ...u,
-            name: "TENSE GOOD",
-            email: "tense.kinesio@gmail.com",
-          }
-        }
-        if (
-          u.role === "admin" &&
-          (u.email === "recepcion@tense.com" ||
-            u.email === "admin@tense.com" ||
-            u.name?.toLowerCase().includes("recepción"))
-        ) {
-          return {
-            ...u,
-            name: "Recepción Tense",
-            email: "recepcion.tense@gmail.com",
-          }
-        }
-        return u
-      })
-      setUsers(migratedUsers)
-      console.log("Estado de usuarios seteado con:", migratedUsers.length)
-      saveToStorage("tense_erp_users", migratedUsers)
+      // 3. Inventory & Sales (New via Supabase)
+      setProducts(supabaseProducts)
+      setProductCategories(supabaseCategories)
+      setSuppliers(supabaseSuppliers)
+      setProductPurchases(supabasePurchases)
+      setProductSales(supabaseSales)
 
-      const storedServices = loadFromStorage("tense_erp_serviceConfigs", mockServiceConfigs)
-      setServiceConfigs(storedServices.length > 0 ? storedServices : mockServiceConfigs)
+      // 4. Finance (New via Supabase)
+      setCashRegisters(supabaseCashRegisters)
+      setBankAccounts(supabaseBankAccounts)
+      setCashTransfers(supabaseCashTransfers)
+      setSettlements(supabaseSettlements)
+      setInterProfessionalAdjustments(supabaseAdjustments)
+      setReceptionDailyCloses(supabaseDailyCloses)
+      setReceptionMonthlyCloses(supabaseMonthlyCloses)
 
-      const loadedProducts = loadFromStorage("tense_erp_products", mockProducts)
-      const migratedProducts = loadedProducts.map((p: Product) => ({
-        ...p,
-        isActive: p.isActive !== undefined ? p.isActive : true,
-      }))
-      setProducts(migratedProducts)
+      // 5. Management (New via Supabase)
+      setWaitlist(supabaseWaitlist)
+      setTasks(supabaseStaffTasks)
+      setGoals(supabaseStaffGoals)
 
-      const storedPacks = loadFromStorage("tense_erp_servicePacks", mockServicePacks)
-      const finalPacks = supabasePacks.length > 0 ? supabasePacks : (storedPacks.length > 0 ? storedPacks : mockServicePacks)
-      setServicePacks(finalPacks)
-      saveToStorage("tense_erp_servicePacks", finalPacks)
-      setServicePacks(finalPacks)
-      saveToStorage("tense_erp_servicePacks", finalPacks)
+      // 6. Clinical Records (New via Supabase)
+      setClinicalTasks(supabaseClinicalTasks)
+      setClinicalTaskEvents(supabaseClinicalTaskEvents)
+      setMedicalRecords(supabaseMedicalRecords)
+      setClinicalEntries(supabaseClinicalEntries)
 
-      const storedCovenants = loadFromStorage("tense_erp_covenants", [])
-      const finalCovenants = supabaseCovenants.length > 0 ? supabaseCovenants : storedCovenants
-      setCovenants(finalCovenants)
-      saveToStorage("tense_erp_covenants", finalCovenants)
+      // 7. Communication (New via Supabase)
+      setConversations(supabaseConversations)
+      setChatMessages(supabaseChatMessages)
+      setCommunityPosts(supabasePosts)
 
-      const storedRegisters = loadFromStorage("tense_erp_cashRegisters", mockCashRegisters)
-      const mergedRegisters = [...storedRegisters]
-
-      // Ensure Reception Register exists
-      if (!mergedRegisters.find(cr => cr.type === "reception")) {
-        const mockReception = mockCashRegisters.find(cr => cr.type === "reception")
-        if (mockReception) mergedRegisters.push(mockReception)
-      }
-
-      // Ensure Administrator Register exists
-      if (!mergedRegisters.find(cr => cr.type === "administrator")) {
-        const mockAdmin = mockCashRegisters.find(cr => cr.type === "administrator")
-        if (mockAdmin) mergedRegisters.push(mockAdmin)
-      }
-
-      setCashRegisters(mergedRegisters)
-      saveToStorage("tense_erp_cashRegisters", mergedRegisters)
-      setWaitlist(loadFromStorage("tense_waitlist", []))
-      setSuppliers(loadFromStorage("suppliers", []))
-      setProductPurchases(loadFromStorage("productPurchases", []))
-      setProductSales(loadFromStorage("productSales", []))
-      setBankAccounts(loadFromStorage("bankAccounts", []))
-      setProductCategories(loadFromStorage("productCategories", productCategories))
-      setReceptionDailyCloses(loadFromStorage("tense_reception_daily_closes", []))
-      setReceptionMonthlyCloses(loadFromStorage("tense_reception_monthly_closes", []))
-      setClinicalFormConfigs(loadFromStorage("tense_erp_clinical_form_configs", clinicalFormConfigs))
-      setTasks(loadFromStorage("tense_erp_tasks", []))
-
-      const storedGoals = loadFromStorage<StaffGoal[]>("tense_erp_goals", mockOccupationGoals)
-      const mergedGoals = [...storedGoals]
-      mockOccupationGoals.forEach(mg => {
-        if (!mergedGoals.some(g => g.id === mg.id)) mergedGoals.push(mg)
-      })
-      setGoals(mergedGoals)
-
-      setClinicalTasks(loadFromStorage("clinicalTasks", mockClinicalTasks))
-      setClinicalTaskEvents(loadFromStorage("clinicalTaskEvents", mockClinicalTaskEvents))
-
-      setMedicalRecords(loadFromStorage("tense_erp_medical_records", []))
-      setCashTransfers(loadFromStorage("tense_erp_cash_transfers", []))
-      setInterProfessionalAdjustments(loadFromStorage("tense_erp_inter_professional_adjustments", []))
-
-      // Load and Merge Chats
-      const storedConvs = loadFromStorage<ChatConversation[]>("tense_erp_conversations", mockConversations)
-      const mergedConvs = [...storedConvs]
-      mockConversations.forEach(mc => {
-        if (!mergedConvs.some(c => c.id === mc.id)) mergedConvs.push(mc)
-      })
-      setConversations(mergedConvs)
-
-      const storedMsgs = loadFromStorage<ChatMessage[]>("tense_erp_chat_messages", mockChatMessages)
-      const mergedMsgs = [...storedMsgs]
-      mockChatMessages.forEach(mm => {
-        if (!mergedMsgs.some(m => m.id === mm.id)) mergedMsgs.push(mm)
-      })
-      setChatMessages(mergedMsgs)
+      // Update Selection
+      const activeIds = supabaseProfs
+        .filter(p => (p.status === 'active' || !p.status) && p.isActive !== false)
+        .map(p => p.id)
+      setSelectedProfessionalIds(activeIds)
 
       setIsInitialized(true)
     }
@@ -2729,7 +2610,16 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   }
 
   const deleteClinicalFormConfig = (id: string) => {
-    setClinicalFormConfigs((prev) => prev.filter((config) => config.id !== id))
+    console.log("[DataContext] Deleting Clinical Form Config:", id)
+    setClinicalFormConfigs((prev) => {
+      const updated = prev.filter((config) => config.id !== id)
+      saveToStorage("tense_erp_clinical_form_configs", updated)
+      return updated
+    })
+    // Also try to delete from Supabase if configured
+    if (SYNC_CONFIG.clinicalFormConfigs) {
+      deleteFromSupabase(SYNC_CONFIG.clinicalFormConfigs.tableName, id)
+    }
   }
 
   const getClinicalFormConfig = (formType: ClinicalFormConfig["formType"]) => {
@@ -3249,6 +3139,33 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     })
   }
 
+  const saveMealTemplate = async (name: string, content: MealPlanItem[]) => {
+    const newTemplate: MealTemplate = {
+      id: crypto.randomUUID(),
+      name,
+      content,
+      createdAt: new Date()
+    }
+
+    const newTemplates = [...mealTemplates, newTemplate]
+    setMealTemplates(newTemplates)
+    saveToStorage("tense_erp_meal_templates", newTemplates)
+
+    if (isSupabaseConfigured()) {
+      await apiUpsert(SYNC_CONFIG.mealTemplates, newTemplate)
+    }
+  }
+
+  const deleteMealTemplate = async (id: string) => {
+    const updated = mealTemplates.filter(t => t.id !== id)
+    setMealTemplates(updated)
+    saveToStorage("tense_erp_meal_templates", updated)
+
+    if (isSupabaseConfigured()) {
+      await apiDelete(SYNC_CONFIG.mealTemplates, id)
+    }
+  }
+
   const value: DataContextType = {
     users,
     addUser,
@@ -3406,6 +3323,9 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     deleteCovenant,
     getCovenant,
     isInitialized,
+    mealTemplates,
+    saveMealTemplate,
+    deleteMealTemplate,
   }
 
   return <DataContext.Provider value={value}>{children}</DataContext.Provider>
