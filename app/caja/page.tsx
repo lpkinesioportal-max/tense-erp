@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useRef } from "react"
+import { useState, useRef, useMemo, useEffect } from "react"
 import { AppLayout } from "@/components/layout/app-layout"
 import { useData } from "@/lib/data-context"
 import { useAuth } from "@/lib/auth-context"
@@ -97,6 +97,7 @@ export default function CajaPage() {
     updateSettlement,
     deleteSettlement,
     deliverCashToProfessional,
+    updateTransaction,
   } = useData()
 
   const isSuperAdmin = hasPermission(["super_admin"])
@@ -145,6 +146,118 @@ export default function CajaPage() {
   const currentYear = new Date().getFullYear()
   const monthSales = getReceptionProductSalesMonth(currentMonth, currentYear)
 
+  // Calculate settlement transfers for today
+  // Calculate settlement transfers for current month (last 30 days) to ensure visibility
+  /* FIX: Use global transactions to avoid sync issues with cashRegisters state */
+  const settlementTransfers = (transactions || []).filter((t) => {
+    // 1. Must be a settlement transfer
+    const isTypeMatch = t.type === "settlement_transfer" || t.notes?.toLowerCase().includes("liquidación")
+    if (!isTypeMatch) return false
+
+    // 2. Must be assigned to reception
+    if (t.cashRegisterType !== "reception") return false
+
+    // 3. Must be recent (last 60 days)
+    const tDate = new Date(t.date)
+    const now = new Date()
+    const diffTime = Math.abs(now.getTime() - tDate.getTime())
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
+
+    return diffDays <= 60 && t.amount > 0
+  })
+
+  const totalSettlementTransfers = settlementTransfers.reduce((sum, t) => sum + t.amount, 0)
+
+  // COMPATIBILITY FIX: Automatically move settlement payments from Admin to Reception
+  // This handles the transition for existing payments made before the code fix.
+  // It checks for "settlement_transfer" in Administrator cash register and moves them to Reception.
+  useEffect(() => {
+    const adminCash = getCashRegister("administrator")
+    if (!adminCash) return
+
+    const today = new Date()
+    const misplacedTransactions = (adminCash.transactions || []).filter(t => {
+      const tDate = new Date(t.date)
+      const diffTime = Math.abs(today.getTime() - tDate.getTime())
+      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
+
+      return (
+        diffDays <= 7 && // Check last 7 days
+        t.type === "settlement_transfer" &&
+        t.cashRegisterType === "administrator"
+      )
+
+    })
+
+    if (misplacedTransactions.length > 0) {
+      console.log("[Auto-Fix] Moving transactions to reception:", misplacedTransactions)
+      misplacedTransactions.forEach(t => {
+        updateTransaction({
+          ...t,
+          cashRegisterType: "reception"
+        })
+      })
+      toast({
+        title: "Datos corregidos automáticamente",
+        description: `Se movieron ${misplacedTransactions.length} pagos de liquidación a Caja Recepción.`,
+      })
+    }
+
+    // AUTO-FIX 2: "Ghost" Transactions (Marked as reception but missing from reception register)
+    const ghostTransactions = (transactions || []).filter(t => {
+      if (t.type !== "settlement_transfer") return false
+      if (t.cashRegisterType !== "reception") return false
+
+      // Check if it's missing from reception cash
+      const inReception = (receptionCash?.transactions || []).some(rt => rt.id === t.id)
+      return !inReception
+    })
+
+    if (ghostTransactions.length > 0) {
+      console.log("[Auto-Fix] Syncing ghost transactions:", ghostTransactions)
+      ghostTransactions.forEach(t => {
+        // Trigger update to force sync into register
+        updateTransaction({ ...t })
+      })
+      toast({
+        title: "Sincronizando...",
+        description: `Recuperando ${ghostTransactions.length} pagos invisibles.`,
+      })
+    }
+  }, [cashRegisters, transactions, updateTransaction, getCashRegister, toast, receptionCash])
+
+  const manualRepair = () => {
+    const adminCash = getCashRegister("administrator")
+    let fixCount = 0
+
+    // 1. Move from Admin to Reception
+    const misplaced = (adminCash?.transactions || []).filter(t =>
+      t.type === "settlement_transfer" &&
+      t.cashRegisterType === "administrator"
+    )
+
+    misplaced.forEach(t => {
+      updateTransaction({ ...t, cashRegisterType: "reception" })
+      fixCount++
+    })
+
+    // 2. Sync Ghosts
+    const ghosts = (transactions || []).filter(t =>
+      t.type === "settlement_transfer" &&
+      t.cashRegisterType === "reception" &&
+      !(receptionCash?.transactions || []).some(rt => rt.id === t.id)
+    )
+    ghosts.forEach(t => {
+      updateTransaction({ ...t })
+      fixCount++
+    })
+
+    toast({
+      title: "Reparación Completa",
+      description: `Se procesaron ${fixCount} transacciones.`,
+    })
+  }
+
   const handleDailyClose = () => {
     if (!user) return
     const result = closeReceptionDaily(user.id, user.name)
@@ -152,6 +265,10 @@ export default function CajaPage() {
       setDailyCloseResult(result)
     }
   }
+
+
+
+
 
   const handleMonthlyClose = () => {
     if (!user || !isSuperAdmin) return
@@ -174,11 +291,12 @@ export default function CajaPage() {
       type: "settlement_transfer",
       amount: settlement.totalTenseCommission || 0,
       paymentMethod: "transfer",
-      cashRegisterType: "administrator",
+      cashRegisterType: "reception",
       notes: `Liquidación mensual - ${(professionals || []).find((p) => p.id === settlement.professionalId)?.name} - ${settlement.month !== undefined ? `${settlement.month + 1}/${settlement.year}` : ""}`,
     })
 
-    alert(`Liquidación transferida a Caja Administrador: ${formatCurrency(settlement.totalTenseCommission || 0)}`)
+    alert(`Liquidación transferida a Caja Recepción: ${formatCurrency(settlement.totalTenseCommission || 0)}`)
+
   }
 
   // Calculate totals for reception
@@ -210,9 +328,18 @@ export default function CajaPage() {
       return sum + balance
     }, 0)
 
+  /* FIX: Robust calculation of reception balance */
   const getReceptionBalance = () => {
-    if (!receptionCash) return 0
-    return receptionCash.openingBalance + (receptionCash.transactions || []).reduce((s, t) => s + t.amount, 0)
+    // If receptionCash is missing, we assume 0 opening balance but still calculate transactions
+    const safeOpeningBalance = Number(receptionCash?.openingBalance) || 0
+
+    // Filter transactions for reception
+    const receptionTx = (transactions || []).filter(t => t.cashRegisterType === "reception")
+
+    // Sum amounts enforcing Number type to avoid string concatenation issues
+    const totalTx = receptionTx.reduce((s, t) => s + Number(t.amount || 0), 0)
+
+    return safeOpeningBalance + totalTx
   }
 
   const handleOpenReception = () => {
@@ -617,7 +744,7 @@ export default function CajaPage() {
           type: "settlement_transfer",
           amount: generatedSettlement.amountToSettle || 0,
           paymentMethod: "transfer",
-          cashRegisterType: "administrator",
+          cashRegisterType: "reception",
           professionalId: selectedProfessional.id,
           settlementId: generatedSettlement.id,
           notes: `Liquidación mensual - ${selectedProfessional.name} (${generatedSettlement.month! + 1}/${generatedSettlement.year})`,
@@ -628,7 +755,7 @@ export default function CajaPage() {
         title: "Liquidación guardada",
         description: generatedSettlement.type === "daily"
           ? `La liquidación diaria informativa para ${selectedProfessional?.name} ha sido registrada.`
-          : `La liquidación mensual para ${selectedProfessional?.name} ha sido confirmada y se registró el ingreso en Caja Administrador.`,
+          : `La liquidación mensual para ${selectedProfessional?.name} ha sido confirmada y se registró el ingreso en Caja Recepción.`,
         variant: "default",
       })
 
@@ -720,10 +847,7 @@ export default function CajaPage() {
                     <div className="text-center">
                       <p className="text-xs text-muted-foreground">Saldo Actual</p>
                       <p className="font-semibold text-sky-600">
-                        {formatCurrency(
-                          (receptionCash?.openingBalance || 0) +
-                          (receptionCash?.transactions || []).reduce((sum, t) => sum + t.amount, 0),
-                        )}
+                        {formatCurrency(getReceptionBalance())}
                       </p>
                     </div>
                   </div>
@@ -812,6 +936,58 @@ export default function CajaPage() {
               </Card>
             </div>
 
+            {/* Settlement Transfers Summary - Last 30 Days */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base flex justify-between items-center">
+                  <span>Ingresos por Liquidaciones (Últimos 30 días)</span>
+                  <span className="text-primary font-bold">{formatCurrency(totalSettlementTransfers)}</span>
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Fecha</TableHead>
+                      <TableHead>Profesional</TableHead>
+                      <TableHead className="text-right">Monto</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {settlementTransfers.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={3} className="text-center text-muted-foreground py-4">
+                          No hay ingresos por liquidaciones recientes
+                        </TableCell>
+                      </TableRow>
+                    ) : (
+                      settlementTransfers
+                        .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+                        .map((t) => {
+                          const prof = professionals.find((p) => p.id === t.professionalId)
+                          return (
+                            <TableRow key={t.id}>
+                              <TableCell className="text-xs">
+                                {new Date(t.date).toLocaleDateString()} <br />
+                                <span className="text-muted-foreground">{new Date(t.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                              </TableCell>
+                              <TableCell>
+                                <div className="flex items-center gap-2">
+                                  <User className="h-4 w-4 text-muted-foreground" />
+                                  <span className="font-medium text-sm">{prof?.name || "Profesional"}</span>
+                                </div>
+                              </TableCell>
+                              <TableCell className="text-right font-semibold text-emerald-600">
+                                {formatCurrency(t.amount)}
+                              </TableCell>
+                            </TableRow>
+                          )
+                        })
+                    )}
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
             {/* Today's Product Sales List */}
             <Card>
               <CardHeader>
@@ -914,6 +1090,8 @@ export default function CajaPage() {
                 </Table>
               </CardContent>
             </Card>
+
+
           </TabsContent>
 
           {/* TAB 2: CAJA PROFESIONALES */}

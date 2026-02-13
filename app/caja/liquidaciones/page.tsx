@@ -1017,7 +1017,7 @@ export default function LiquidationsPage() {
                     </p>
                   </div>
                   <p className="text-sm text-muted-foreground">
-                    Este monto será trasladado de Caja Profesional a Caja Administrador
+                    Este monto será trasladado de Caja Recepción a Caja Administrador
                   </p>
                 </div>
                 <DialogFooter>

@@ -146,6 +146,7 @@ interface DataContextType {
   // Transactions
   transactions: Transaction[]
   addTransaction: (transaction: Omit<Transaction, "id" | "createdAt">) => void
+  updateTransaction: (transaction: Transaction) => void
   addStaffTask: (task: Omit<StaffTask, "id" | "createdAt" | "updatedAt">) => StaffTask
 
   // Cash Registers
@@ -2000,6 +2001,50 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     })
   }
 
+  const updateTransaction = (updatedTransaction: Transaction) => {
+    // 1. Update Global Transactions
+    setTransactions((prev) => {
+      const updated = prev.map((t) => (t.id === updatedTransaction.id ? updatedTransaction : t))
+      saveToStorage("tense_erp_transactions", updated)
+      apiUpsert(SYNC_CONFIG.transactions, updatedTransaction)
+      return updated
+    })
+
+    // 2. Update Cash Registers (Sync)
+    setCashRegisters((prevRegisters) => {
+      return prevRegisters.map((cr) => {
+        // Determine if transaction belongs in this register based on new state
+        const belongsInRegister =
+          (cr.type === updatedTransaction.cashRegisterType) &&
+          (cr.type !== "professional" || cr.professionalId === updatedTransaction.professionalId)
+
+        // Check if it currently exists in this register
+        const existsInRegister = cr.transactions.some((t) => t.id === updatedTransaction.id)
+
+        if (existsInRegister && belongsInRegister) {
+          // Update in place
+          return {
+            ...cr,
+            transactions: cr.transactions.map((t) => (t.id === updatedTransaction.id ? updatedTransaction : t)),
+          }
+        } else if (existsInRegister && !belongsInRegister) {
+          // Remove (it moved to another register)
+          return {
+            ...cr,
+            transactions: cr.transactions.filter((t) => t.id !== updatedTransaction.id),
+          }
+        } else if (!existsInRegister && belongsInRegister) {
+          // Add (it moved into this register)
+          return {
+            ...cr,
+            transactions: [...cr.transactions, updatedTransaction],
+          }
+        }
+        return cr
+      })
+    })
+  }
+
   const closeCashRegister = (type: CashRegisterType, professionalId?: string) => {
     setCashRegisters((prev) =>
       prev.map((cr) => {
@@ -2253,7 +2298,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         type: "settlement_transfer",
         amount: amount,
         paymentMethod: "cash",
-        cashRegisterType: "administrator",
+        cashRegisterType: "reception", // Changed from 'administrator' to 'reception' so it appears in daily cash
         professionalId: profId,
         settlementId: settlementId,
         notes: notes || `Cobro liquidación - ${professional?.name} (${dId})`,
@@ -3136,7 +3181,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       type: "cash_transfer",
       amount: -transfer.monto,
       paymentMethod: "cash",
-      cashRegisterType: "professional",
+      cashRegisterType: "reception", // Changed from 'professional' to 'reception'
       professionalId: transfer.profesionalId,
       notes: `Traspaso a Caja Admin - Liquidación ${transfer.month}/${transfer.year}`,
       createdAt: new Date(),
@@ -3157,7 +3202,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
 
     setCashRegisters((prev) =>
       prev.map((cr) => {
-        if (cr.type === "professional" && cr.professionalId === transfer.profesionalId) {
+        if (cr.type === "reception") {
           return { ...cr, transactions: [...cr.transactions, txnOut] }
         }
         if (cr.type === "administrator") {
@@ -3240,6 +3285,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     deleteAppointment,
     transactions,
     addTransaction,
+    updateTransaction,
     cashRegisters,
     getCashRegister,
     openCashRegister,
