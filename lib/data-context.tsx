@@ -676,7 +676,23 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       setCovenants(finalCovenants)
       saveToStorage("tense_erp_covenants", finalCovenants)
 
-      setCashRegisters(loadFromStorage("tense_erp_cashRegisters", mockCashRegisters))
+      const storedRegisters = loadFromStorage("tense_erp_cashRegisters", mockCashRegisters)
+      const mergedRegisters = [...storedRegisters]
+
+      // Ensure Reception Register exists
+      if (!mergedRegisters.find(cr => cr.type === "reception")) {
+        const mockReception = mockCashRegisters.find(cr => cr.type === "reception")
+        if (mockReception) mergedRegisters.push(mockReception)
+      }
+
+      // Ensure Administrator Register exists
+      if (!mergedRegisters.find(cr => cr.type === "administrator")) {
+        const mockAdmin = mockCashRegisters.find(cr => cr.type === "administrator")
+        if (mockAdmin) mergedRegisters.push(mockAdmin)
+      }
+
+      setCashRegisters(mergedRegisters)
+      saveToStorage("tense_erp_cashRegisters", mergedRegisters)
       setWaitlist(loadFromStorage("tense_waitlist", []))
       setSuppliers(loadFromStorage("suppliers", []))
       setProductPurchases(loadFromStorage("productPurchases", []))
