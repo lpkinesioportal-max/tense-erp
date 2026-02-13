@@ -3167,13 +3167,11 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     const transfer = cashTransfers.find((t) => t.id === transferId)
     if (!transfer || transfer.status === "confirmado") return
 
-    const profCashRegister = cashRegisters.find(
-      (cr) => cr.type === "professional" && cr.professionalId === transfer.profesionalId,
-    )
+    const receptionCashRegister = cashRegisters.find((cr) => cr.type === "reception")
 
     const adminCashRegister = cashRegisters.find((cr) => cr.type === "administrator")
 
-    if (!profCashRegister || !adminCashRegister) return
+    if (!receptionCashRegister || !adminCashRegister) return
 
     const txnOut: Transaction = {
       id: `txn-transfer-out-${Date.now()}`,
