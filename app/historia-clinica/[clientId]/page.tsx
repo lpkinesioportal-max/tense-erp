@@ -2393,28 +2393,26 @@ function FichaDisplay({ item, config, typeInfo, allEntries, onEdit, onDeleteLog,
 
                                     <div className="flex gap-3 mt-1 pl-1">
                                       {opt.videoUrl && (
-                                        <div
+                                        <a
+                                          href={opt.videoUrl.startsWith('http') ? opt.videoUrl : `https://${opt.videoUrl}`}
+                                          target="_blank"
+                                          rel="noopener noreferrer"
                                           className="flex items-center gap-1 text-[10px] text-blue-600 hover:text-blue-700 hover:underline cursor-pointer z-50 select-none"
-                                          onClick={(e) => {
-                                            e.preventDefault();
-                                            e.stopPropagation();
-                                            window.open(opt.videoUrl, '_blank', 'noopener,noreferrer');
-                                          }}
+                                          onClick={(e) => e.stopPropagation()}
                                         >
                                           <Video className="h-3 w-3" /> Ver Video
-                                        </div>
+                                        </a>
                                       )}
                                       {opt.pdfUrl && (
-                                        <div
+                                        <a
+                                          href={opt.pdfUrl.startsWith('http') ? opt.pdfUrl : `https://${opt.pdfUrl}`}
+                                          target="_blank"
+                                          rel="noopener noreferrer"
                                           className="flex items-center gap-1 text-[10px] text-red-600 hover:text-red-700 hover:underline cursor-pointer z-50 select-none"
-                                          onClick={(e) => {
-                                            e.preventDefault();
-                                            e.stopPropagation();
-                                            window.open(opt.pdfUrl, '_blank', 'noopener,noreferrer');
-                                          }}
+                                          onClick={(e) => e.stopPropagation()}
                                         >
                                           <FileText className="h-3 w-3" /> Ver Receta (PDF)
-                                        </div>
+                                        </a>
                                       )}
                                     </div>
                                   </div>

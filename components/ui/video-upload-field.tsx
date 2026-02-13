@@ -80,6 +80,12 @@ export function VideoUploadField({ value = "", onChange, placeholder = "Pegá el
                     type="text"
                     value={value || ""}
                     onChange={e => onChange(e.target.value)}
+                    onBlur={(e) => {
+                        let val = e.target.value.trim();
+                        if (val && !val.startsWith('http') && !val.startsWith('//')) {
+                            onChange(`https://${val}`);
+                        }
+                    }}
                     placeholder={placeholder}
                     className="h-9 text-sm"
                 />
