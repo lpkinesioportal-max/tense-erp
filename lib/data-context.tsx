@@ -1925,10 +1925,15 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   const addTransaction = (transaction: Omit<Transaction, "id" | "createdAt">) => {
     const newTransaction: Transaction = {
       ...transaction,
-      id: `txn-${Date.now()}`,
+      id: `txn-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
       createdAt: new Date(),
     }
-    setTransactions((prev) => [...prev, newTransaction])
+    setTransactions((prev) => {
+      const updated = [...prev, newTransaction]
+      saveToStorage("tense_erp_transactions", updated)
+      syncToSupabase(SYNC_CONFIG.transactions.tableName, [newTransaction])
+      return updated
+    })
 
     setCashRegisters((prev) =>
       prev.map((cr) => {
@@ -1979,6 +1984,20 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       professionalId: professionalId,
       notes: `Entrega de efectivo al profesional ($${amount}) - Cierre de caja`,
     })
+
+    // Update professional's cashInHand
+    setProfessionals(prev => {
+      const updated = prev.map(p => {
+        if (p.id === professionalId) {
+          const updatedProf = { ...p, cashInHand: (p.cashInHand || 0) + amount }
+          apiUpsert(SYNC_CONFIG.professionals, updatedProf)
+          return updatedProf
+        }
+        return p
+      })
+      saveToStorage("tense_erp_professionals", updated)
+      return updated
+    })
   }
 
   const closeCashRegister = (type: CashRegisterType, professionalId?: string) => {
@@ -2001,7 +2020,26 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
             }
 
             // Sync with transactions list
-            setTransactions((prevTxns) => [...prevTxns, withdrawal])
+            setTransactions((prevTxns) => {
+              const updated = [...prevTxns, withdrawal]
+              saveToStorage("tense_erp_transactions", updated)
+              syncToSupabase(SYNC_CONFIG.transactions.tableName, [withdrawal])
+              return updated
+            })
+
+            // Update professional's cashInHand
+            setProfessionals(prev => {
+              const updated = prev.map(p => {
+                if (p.id === professionalId) {
+                  const updatedProf = { ...p, cashInHand: (p.cashInHand || 0) + currentBalance }
+                  apiUpsert(SYNC_CONFIG.professionals, updatedProf)
+                  return updatedProf
+                }
+                return p
+              })
+              saveToStorage("tense_erp_professionals", updated)
+              return updated
+            })
 
             return {
               ...cr,
@@ -2144,6 +2182,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       cashCollected,
       transferCollected,
       amountToSettle,
+      professionalCashInHand: professional.cashInHand || 0,
       status: "pending",
       displayId,
       templateVersion: "1.0.0",
@@ -2343,6 +2382,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       cashCollected,
       transferCollected,
       amountToSettle,
+      professionalCashInHand: professional.cashInHand || 0,
       status: "pending",
       displayId: `LIQD-${date.getFullYear()}${String(date.getMonth() + 1).padStart(2, "0")}${String(date.getDate()).padStart(2, "0")}-${professional.name.split(" ").map((n: any) => n[0]).join("")}`,
       templateVersion: "1.0.0",

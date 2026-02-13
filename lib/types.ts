@@ -44,6 +44,8 @@ export interface Professional {
   password?: string
   dni?: string
   address?: string
+  cashInHand?: number
+  transferInHand?: number
 }
 
 export interface Client {
@@ -238,6 +240,7 @@ export interface Settlement {
   noShowAppointments?: number
   totalProfessionalEarnings?: number
   professionalEarningsNoShow?: number
+  professionalCashInHand?: number
 }
 
 export interface Product {

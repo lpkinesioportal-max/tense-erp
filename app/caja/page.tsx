@@ -12,7 +12,7 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
 import { Badge } from "@/components/ui/badge"
-import { Alert, AlertDescription } from "@/components/ui/alert"
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import {
   Dialog,
   DialogContent,
@@ -22,7 +22,8 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { formatCurrency, getDateInISO } from "@/lib/utils"
+import { formatCurrency, getDateInISO, parseISODate } from "@/lib/utils"
+
 import {
   Lock,
   Building2,
@@ -257,16 +258,17 @@ export default function CajaPage() {
       const profId = apt.professionalIdAtencion || apt.professionalIdCalendario || apt.professionalId
       if (profId !== professionalId) return false
 
-      const aptDate = apt.date ? new Date(apt.date) : null
-      if (!aptDate) return false
+      const aptDateISO = apt.date ? getDateInISO(apt.date) : null
+      if (!aptDateISO) return false
 
       if (range?.to) {
+        const aptDate = parseISODate(aptDateISO)
         return isWithinInterval(aptDate, {
           start: startOfDay(range.from!),
           end: endOfDay(range.to),
         })
       } else {
-        return aptDate.toDateString() === targetDate.toDateString()
+        return aptDateISO === getDateInISO(targetDate)
       }
     })
 
@@ -278,7 +280,8 @@ export default function CajaPage() {
     const totalBaseRevenue = attended.reduce((sum: number, a: any) => sum + (a.basePrice || a.finalPrice || 0), 0)
 
     // 2. BLOCK B: COBROS DEL DÍA (Payments collected on this date, regardless of appointment date)
-    let totalCash = 0
+    let totalCash = 0 // This will be the NET cash (payments - withdrawals)
+    let totalCashCollected = 0 // This will be the GROSS cash (payments only)
     let totalTransfer = 0
     const dailyPayments: any[] = []
 
@@ -286,16 +289,19 @@ export default function CajaPage() {
       (apt.payments || []).forEach((payment) => {
         if (payment.receivedByProfessionalId !== professionalId) return
 
-        const pDate = payment.paymentDate ? new Date(payment.paymentDate) : new Date(payment.createdAt)
+        const pDateISO = payment.paymentDate ? getDateInISO(payment.paymentDate) : getDateInISO(payment.createdAt)
         const isSameDate = range?.to
-          ? isWithinInterval(pDate, { start: startOfDay(range.from!), end: endOfDay(range.to) })
-          : pDate.toDateString() === targetDate.toDateString()
+          ? isWithinInterval(parseISODate(pDateISO), { start: startOfDay(range.from!), end: endOfDay(range.to) })
+          : pDateISO === getDateInISO(targetDate)
 
         if (isSameDate) {
-          if (payment.paymentMethod === "cash") {
-            totalCash += payment.amount
-          } else if (payment.paymentMethod === "transfer") {
-            totalTransfer += payment.amount
+          const method = (payment.paymentMethod || "").trim().toLowerCase()
+          const amt = Number(payment.amount) || 0
+          if (method === "cash" || method === "efectivo") {
+            totalCash += amt
+            totalCashCollected += amt
+          } else if (method === "transfer" || method === "transferencia") {
+            totalTransfer += amt
           }
           dailyPayments.push({
             ...payment,
@@ -305,22 +311,54 @@ export default function CajaPage() {
           })
         }
       })
+
+      // Fallback: If no cash payments found in array but fields exist, trust fields
+      const aptDateISO = apt.date ? getDateInISO(apt.date) : null
+      const isToday = range?.to
+        ? (aptDateISO ? isWithinInterval(parseISODate(aptDateISO), { start: startOfDay(range.from!), end: endOfDay(range.to) }) : false)
+        : aptDateISO === getDateInISO(targetDate)
+
+      if (isToday && (apt.status === "attended" || apt.status === "closed")) {
+        const profId = apt.professionalIdAtencion || apt.professionalIdCalendario || apt.professionalId
+        if (profId === professionalId) {
+          // Check if we already counted cash for this appointment via the payments array
+          const cashInPayments = (apt.payments || []).some(p =>
+            p.receivedByProfessionalId === professionalId &&
+            (p.paymentMethod || "").trim().toLowerCase() === "cash" &&
+            (p.paymentDate ? getDateInISO(p.paymentDate) : getDateInISO(p.createdAt)) === (aptDateISO || getDateInISO(targetDate))
+          )
+
+          if (!cashInPayments && (Number(apt.cashCollected) || 0) > 0) {
+            totalCash += Number(apt.cashCollected)
+            totalCashCollected += Number(apt.cashCollected)
+          }
+
+          // Same for transfers as a safety measure
+          const transferInPayments = (apt.payments || []).some(p =>
+            (p.paymentMethod || "").trim().toLowerCase() === "transfer" &&
+            (p.paymentDate ? getDateInISO(p.paymentDate) : getDateInISO(p.createdAt)) === (aptDateISO || getDateInISO(targetDate))
+          )
+          if (!transferInPayments && Number(apt.transferCollected || 0) > 0) {
+            totalTransfer += Number(apt.transferCollected)
+          }
+        }
+      }
     })
 
     // 3. MOVIMIENTOS DE CAJA (Withdrawals/Deliveries)
     const profTransactions = (transactions || []).filter((t: any) => {
       if (t.professionalId !== professionalId) return false
 
-      const tDate = new Date(t.date)
+      const tDateISO = getDateInISO(t.date)
       const isSameDate = range?.to
-        ? isWithinInterval(tDate, { start: startOfDay(range.from!), end: endOfDay(range.to) })
-        : tDate.toDateString() === targetDate.toDateString()
+        ? isWithinInterval(parseISODate(tDateISO), { start: startOfDay(range.from!), end: endOfDay(range.to) })
+        : tDateISO === getDateInISO(targetDate)
 
       return isSameDate && t.type === "professional_withdrawal"
     })
 
     profTransactions.forEach((t) => {
-      totalCash += t.amount // Amount is negative for withdrawals
+      totalCash += Number(t.amount) || 0 // Amount is negative for withdrawals
     })
 
     return {
@@ -328,6 +366,7 @@ export default function CajaPage() {
       attended,
       noShow,
       totalCash: Math.max(0, totalCash),
+      totalCashCollected,
       totalTransfer,
       totalRevenue,
       totalBaseRevenue,
@@ -440,7 +479,7 @@ export default function CajaPage() {
       (s) =>
         s.type === "daily" &&
         s.professionalId === prof.id &&
-        new Date(s.date || new Date()).toDateString() === targetDate.toDateString(),
+        (typeof s.date === 'string' ? parseISODate(s.date) : new Date(s.date || new Date())).toDateString() === targetDate.toDateString(),
     )
 
     if (existingSettlement) {
@@ -509,8 +548,8 @@ export default function CajaPage() {
         (s) =>
           s.type === "daily" &&
           s.professionalId === settlement.professionalId &&
-          new Date(s.date || new Date()).getMonth() === settlement.month &&
-          new Date(s.date || new Date()).getFullYear() === settlement.year,
+          (typeof s.date === 'string' ? parseISODate(s.date) : new Date(s.date || new Date())).getMonth() === settlement.month &&
+          (typeof s.date === 'string' ? parseISODate(s.date) : new Date(s.date || new Date())).getFullYear() === settlement.year,
       )
       generateMonthlySettlementPDF(settlement, prof, dailySettlements)
     }
@@ -616,7 +655,7 @@ export default function CajaPage() {
 
     // Check if there are pending appointments for this month
     const pendingAppointments = (appointments || []).filter((apt) => {
-      const aptDate = new Date(apt.date)
+      const aptDate = parseISODate(typeof apt.date === 'string' ? apt.date : (apt.date as any).toISOString())
       return (
         apt.professionalIdCalendario === professionalId &&
         aptDate.getMonth() === month &&
@@ -951,7 +990,7 @@ export default function CajaPage() {
                 {selectedProfessional && dayData && (
                   <>
                     {/* Cash Summary Cards */}
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                       <Card>
                         <CardContent className="pt-4">
                           <div className="flex items-center gap-3">
@@ -959,7 +998,7 @@ export default function CajaPage() {
                               <Wallet className="h-5 w-5 text-emerald-600" />
                             </div>
                             <div>
-                              <p className="text-sm text-muted-foreground">Efectivo Cobrado (Prof.)</p>
+                              <p className="text-sm text-muted-foreground">Efectivo Cobrado (Hoy)</p>
                               <p className="text-2xl font-bold text-emerald-600">{formatCurrency(dayData.totalCash)}</p>
                             </div>
                           </div>
@@ -968,7 +1007,7 @@ export default function CajaPage() {
                               <AlertDialogTrigger asChild>
                                 <Button size="sm" variant="outline" className="w-full mt-4 h-8 border-emerald-300 text-emerald-700 hover:bg-emerald-50">
                                   <HandCoins className="h-4 w-4 mr-2" />
-                                  Dar efectivo al Prof.
+                                  Entregar efectivo
                                 </Button>
                               </AlertDialogTrigger>
                               <AlertDialogContent>
@@ -976,7 +1015,7 @@ export default function CajaPage() {
                                   <AlertDialogTitle>¿Confirmar entrega de efectivo?</AlertDialogTitle>
                                   <AlertDialogDescription>
                                     Se registrará que has entregado físicamente {formatCurrency(dayData.totalCash)} a {selectedProfessional.name}.
-                                    Este movimiento dejará la caja de hoy en $0.
+                                    Este monto se sumará a su "Efectivo en Mano" acumulado.
                                   </AlertDialogDescription>
                                 </AlertDialogHeader>
                                 <AlertDialogFooter>
@@ -990,6 +1029,26 @@ export default function CajaPage() {
                           )}
                         </CardContent>
                       </Card>
+
+                      <Card className="bg-amber-50 border-amber-200">
+                        <CardContent className="pt-4">
+                          <div className="flex items-center gap-3">
+                            <div className="p-2 rounded-lg bg-amber-100">
+                              <HandCoins className="h-5 w-5 text-amber-600" />
+                            </div>
+                            <div>
+                              <p className="text-sm text-amber-800 font-medium">Efectivo Acumulado (En Mano)</p>
+                              <p className="text-2xl font-bold text-amber-700">
+                                {formatCurrency(selectedProfessional.cashInHand || 0)}
+                              </p>
+                            </div>
+                          </div>
+                          <p className="text-[10px] text-amber-600 mt-2 italic">
+                            Total entregado al profesional pendiente de liquidación.
+                          </p>
+                        </CardContent>
+                      </Card>
+
                       <Card>
                         <CardContent className="pt-4">
                           <div className="flex items-center gap-3">
@@ -997,7 +1056,7 @@ export default function CajaPage() {
                               <Building2 className="h-5 w-5 text-blue-600" />
                             </div>
                             <div>
-                              <p className="text-sm text-muted-foreground">Transferencias al Prof.</p>
+                              <p className="text-sm text-muted-foreground">Transferencias (Hoy)</p>
                               <p className="text-2xl font-bold text-blue-600">
                                 {formatCurrency(dayData.totalTransfer)}
                               </p>
@@ -1316,15 +1375,16 @@ export default function CajaPage() {
                       </div>
                     </CardContent>
                   </Card>
+
                 )}
               </div>
             </div>
-          </TabsContent>
+          </TabsContent >
 
-        </Tabs>
+        </Tabs >
 
         {/* Dialog: Open Reception */}
-        <Dialog open={showOpenReceptionDialog} onOpenChange={setShowOpenReceptionDialog}>
+        < Dialog open={showOpenReceptionDialog} onOpenChange={setShowOpenReceptionDialog} >
           <DialogContent>
             <DialogHeader>
               <DialogTitle>Abrir Caja Recepción</DialogTitle>
@@ -1348,10 +1408,10 @@ export default function CajaPage() {
               <Button onClick={handleOpenReception}>Abrir Caja</Button>
             </DialogFooter>
           </DialogContent>
-        </Dialog>
+        </Dialog >
 
         {/* Dialog: New Transaction */}
-        <Dialog open={showNewTransactionDialog} onOpenChange={setShowNewTransactionDialog}>
+        < Dialog open={showNewTransactionDialog} onOpenChange={setShowNewTransactionDialog} >
           <DialogContent>
             <DialogHeader>
               <DialogTitle>Nueva Transacción</DialogTitle>
@@ -1405,7 +1465,7 @@ export default function CajaPage() {
               <Button onClick={handleAddTransaction}>Registrar</Button>
             </DialogFooter>
           </DialogContent>
-        </Dialog>
+        </Dialog >
 
         <Dialog open={showMonthlySettlementDialog} onOpenChange={setShowMonthlySettlementDialog}>
           <DialogContent>
@@ -1807,7 +1867,7 @@ export default function CajaPage() {
             </div>
           </DialogContent>
         </Dialog>
-      </div>
-    </AppLayout>
+      </div >
+    </AppLayout >
   )
 }

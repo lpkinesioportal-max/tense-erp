@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { formatCurrency } from "@/lib/utils"
+import { formatCurrency, getDateInISO } from "@/lib/utils"
 import { Calendar, DollarSign, CheckCircle, ArrowRight, HandCoins } from "lucide-react"
 import type { Appointment, AppointmentPayment } from "@/lib/types"
 import { useToast } from "@/hooks/use-toast"
@@ -22,8 +22,7 @@ export function ProfessionalDailyCash() {
 
   // 1. BLOCK A: ATENCIÓN (Performance) - Based on appointment date
   const atendidosDelDia = appointments.filter((a) => {
-    const aptDate = new Date(a.date).toISOString().split("T")[0]
-    return a.professionalId === selectedProfessionalId && aptDate === selectedDate && (a.status === "attended" || a.status === "closed")
+    return a.professionalId === selectedProfessionalId && getDateInISO(a.date) === selectedDate && (a.status === "attended" || a.status === "closed")
   })
 
   // 2. BLOCK B: COBROS (Collections) - Based on collection date
@@ -34,10 +33,13 @@ export function ProfessionalDailyCash() {
   appointments.forEach((apt: Appointment) => {
     (apt.payments || []).forEach((p: AppointmentPayment) => {
       if (p.receivedByProfessionalId === selectedProfessionalId) {
-        const pDate = p.paymentDate ? new Date(p.paymentDate).toISOString().split("T")[0] : new Date(p.createdAt).toISOString().split("T")[0]
-        if (pDate === selectedDate) {
-          if (p.paymentMethod === "cash") totalCash += p.amount
-          else if (p.paymentMethod === "transfer") totalTransfers += p.amount
+        const pDateISO = p.paymentDate ? getDateInISO(p.paymentDate) : getDateInISO(p.createdAt)
+
+        if (pDateISO === selectedDate) {
+          const method = (p.paymentMethod || "").trim().toLowerCase()
+          const amt = Number(p.amount) || 0
+          if (method === "cash" || method === "efectivo") totalCash += amt
+          else if (method === "transfer" || method === "transferencia") totalTransfers += amt
 
           const client = clients.find(c => c.id === apt.clientId)
           dailyPayments.push({
@@ -48,13 +50,35 @@ export function ProfessionalDailyCash() {
         }
       }
     })
+
+    // Fallback: If no cash payments found in array but fields exist, trust fields
+    if (getDateInISO(apt.date) === selectedDate && (apt.status === "attended" || apt.status === "closed")) {
+      const profId = apt.professionalIdAtencion || apt.professionalIdCalendario || apt.professionalId
+      if (profId === selectedProfessionalId) {
+        const cashInPayments = (apt.payments || []).some(p =>
+          p.receivedByProfessionalId === selectedProfessionalId &&
+          (p.paymentMethod || "").trim().toLowerCase() === "cash" &&
+          (p.paymentDate ? getDateInISO(p.paymentDate) : getDateInISO(p.createdAt)) === selectedDate
+        )
+        if (!cashInPayments && (Number(apt.cashCollected) || 0) > 0) {
+          totalCash += Number(apt.cashCollected)
+        }
+
+        const transferInPayments = (apt.payments || []).some(p =>
+          (p.paymentMethod || "").trim().toLowerCase() === "transfer" &&
+          (p.paymentDate ? getDateInISO(p.paymentDate) : getDateInISO(p.createdAt)) === selectedDate
+        )
+        if (!transferInPayments && Number(apt.transferCollected || 0) > 0) {
+          totalTransfers += Number(apt.transferCollected)
+        }
+      }
+    }
   })
 
   // Subtract withdrawals to show real-time balance
   const profTransactions = (transactions || []).filter((t: any) => {
     if (t.professionalId !== selectedProfessionalId) return false
-    const tDate = new Date(t.date).toISOString().split("T")[0]
-    return tDate === selectedDate && t.type === "professional_withdrawal"
+    return getDateInISO(t.date) === selectedDate && t.type === "professional_withdrawal"
   })
 
   profTransactions.forEach(t => {
@@ -123,7 +147,7 @@ export function ProfessionalDailyCash() {
               <div className="p-3 border rounded-md bg-emerald-50 border-emerald-200">
                 <div className="flex items-center gap-2 text-emerald-700 mb-1">
                   <DollarSign className="h-4 w-4" />
-                  <span className="text-xs font-medium">Efectivo (Entregado al Prof.)</span>
+                  <span className="text-xs font-medium">Cobrado Hoy (Efectivo)</span>
                 </div>
                 <div className="text-xl font-bold text-emerald-700">{formatCurrency(totalCash)}</div>
 
@@ -132,7 +156,7 @@ export function ProfessionalDailyCash() {
                     <AlertDialogTrigger asChild>
                       <Button size="sm" variant="outline" className="w-full mt-2 h-7 text-[10px] border-emerald-300 text-emerald-700 hover:bg-emerald-100">
                         <HandCoins className="h-3 w-3 mr-1" />
-                        Dar efectivo al Prof.
+                        Entregar efectivo
                       </Button>
                     </AlertDialogTrigger>
                     <AlertDialogContent>
@@ -140,7 +164,7 @@ export function ProfessionalDailyCash() {
                         <AlertDialogTitle>¿Confirmar entrega de efectivo?</AlertDialogTitle>
                         <AlertDialogDescription>
                           Se registrará que has entregado físicamente {formatCurrency(totalCash)} a {professional?.name}.
-                          Este movimiento dejará la caja de hoy en $0.
+                          Este monto se sumará a su "Efectivo en Mano" acumulado.
                         </AlertDialogDescription>
                       </AlertDialogHeader>
                       <AlertDialogFooter>
@@ -157,10 +181,24 @@ export function ProfessionalDailyCash() {
               <div className="p-3 border rounded-md bg-blue-50 border-blue-200">
                 <div className="flex items-center gap-2 text-blue-700 mb-1">
                   <ArrowRight className="h-4 w-4" />
-                  <span className="text-xs font-medium">Transferencia (Directo al Prof.)</span>
+                  <span className="text-xs font-medium">Cobrado Hoy (Transf.)</span>
                 </div>
                 <div className="text-xl font-bold text-blue-700">{formatCurrency(totalTransfers)}</div>
               </div>
+            </div>
+
+            {/* Efectivo en Mano Acumulado */}
+            <div className="p-3 border rounded-md bg-amber-50 border-amber-200 flex justify-between items-center">
+              <div className="flex items-center gap-2">
+                <div className="p-1.5 rounded-full bg-amber-100 italic">
+                  <HandCoins className="h-4 w-4 text-amber-600" />
+                </div>
+                <div>
+                  <span className="text-xs font-bold text-amber-800 uppercase">Efectivo Acumulado (En Mano)</span>
+                  <p className="text-[10px] text-amber-600 italic">Total entregado pendiente de liquidar</p>
+                </div>
+              </div>
+              <div className="text-xl font-bold text-amber-700">{formatCurrency(professional?.cashInHand || 0)}</div>
             </div>
 
             {/* Comisión Informativa - BLOCK A */}
